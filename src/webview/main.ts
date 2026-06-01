@@ -90,7 +90,8 @@ import type { EditorMessage } from '../shared/types';
 
   const editorContainer = document.getElementById('prosemirror')!;
   const sourceContainer = document.getElementById('source-editor')!;
-  const toggleBtn = document.getElementById('pm-source-toggle')!;
+  const modeSource = document.getElementById('pm-mode-source')!;
+  const modeVisual = document.getElementById('pm-mode-visual')!;
   let pmView: EditorView | null = null;
   let cmView: EditorView | null = null;
 
@@ -170,7 +171,8 @@ import type { EditorMessage } from '../shared/types';
     isSourceMode = source;
     editorContainer.classList.toggle('active', !source);
     sourceContainer.classList.toggle('active', source);
-    toggleBtn.classList.toggle('active', source);
+    modeSource.classList.toggle('active', source);
+    modeVisual.classList.toggle('active', !source);
 
     if (source) {
       if (pmView) {
@@ -189,7 +191,8 @@ import type { EditorMessage } from '../shared/types';
     }
   }
 
-  toggleBtn.addEventListener('click', () => setMode(!isSourceMode));
+  modeSource.addEventListener('click', () => setMode(true));
+  modeVisual.addEventListener('click', () => setMode(false));
 
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'm') {

@@ -43563,7 +43563,8 @@
     let debounceTimer = null;
     const editorContainer = document.getElementById("prosemirror");
     const sourceContainer = document.getElementById("source-editor");
-    const toggleBtn = document.getElementById("pm-source-toggle");
+    const modeSource = document.getElementById("pm-mode-source");
+    const modeVisual = document.getElementById("pm-mode-visual");
     let pmView = null;
     let cmView = null;
     function initProseMirror(markdownText) {
@@ -43632,7 +43633,8 @@
       isSourceMode = source;
       editorContainer.classList.toggle("active", !source);
       sourceContainer.classList.toggle("active", source);
-      toggleBtn.classList.toggle("active", source);
+      modeSource.classList.toggle("active", source);
+      modeVisual.classList.toggle("active", !source);
       if (source) {
         if (pmView) {
           const cm = getCmView();
@@ -43649,7 +43651,8 @@
         }
       }
     }
-    toggleBtn.addEventListener("click", () => setMode(!isSourceMode));
+    modeSource.addEventListener("click", () => setMode(true));
+    modeVisual.addEventListener("click", () => setMode(false));
     document.addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "m") {
         e.preventDefault();

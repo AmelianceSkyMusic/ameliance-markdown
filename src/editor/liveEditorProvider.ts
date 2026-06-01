@@ -149,6 +149,8 @@ body{
 #source-editor.active{display:block}
 #source-editor .cm-editor{height:100%}
 #source-editor .cm-scroller{overflow:auto}
+.pm-toolbar .mode-btn{padding:3px 12px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.pm-toolbar .mode-btn.active{background:var(--vscode-button-background);color:var(--vscode-button-foreground)}
 </style>
 </head>
 <body>
@@ -178,6 +180,9 @@ body{
   <span class="sep"></span>
   <button id="pm-link" title="Insert Link">🔗</button>
   <button id="pm-image" title="Insert Image">🖼</button>
+  <span style="flex:1"></span>
+  <button id="pm-mode-source" class="mode-btn active">Source</button>
+  <button id="pm-mode-visual" class="mode-btn">Visual</button>
 </div>
 <div id="prosemirror" class="active"></div>
 <div id="source-editor"></div>
