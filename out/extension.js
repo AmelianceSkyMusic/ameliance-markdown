@@ -46,7 +46,7 @@ var LiveEditorProvider = class {
     this.activePanels = activePanels2;
   }
   async resolveCustomTextEditor(document, webviewPanel, _token) {
-    this.activePanels.add(webviewPanel);
+    this.activePanels.set(webviewPanel, document.uri);
     webviewPanel.onDidDispose(() => this.activePanels.delete(webviewPanel));
     webviewPanel.webview.options = { enableScripts: true };
     webviewPanel.webview.html = this.getHtml();
@@ -220,7 +220,7 @@ function getNonce() {
 }
 
 // src/extension.ts
-var activePanels = /* @__PURE__ */ new Set();
+var activePanels = /* @__PURE__ */ new Map();
 function activate(context) {
   context.subscriptions.push(
     vscode2.window.registerCustomEditorProvider(
@@ -230,12 +230,13 @@ function activate(context) {
     )
   );
   context.subscriptions.push(
-    vscode2.commands.registerCommand("ameliance-markdown.toggleSource", () => {
-      for (const panel of activePanels) {
-        if (panel.visible) {
-          panel.webview.postMessage({ type: "toggleSource" });
-          return;
-        }
+    vscode2.commands.registerCommand("ameliance-markdown.toggleSource", async () => {
+      const customPanel = Array.from(activePanels.keys()).find((p) => p.active);
+      const textEditor = vscode2.window.activeTextEditor;
+      if (customPanel) {
+        await vscode2.commands.executeCommand("vscode.openWith", activePanels.get(customPanel), "default");
+      } else if (textEditor) {
+        await vscode2.commands.executeCommand("vscode.openWith", textEditor.document.uri, "ameliance-markdown.preview");
       }
     })
   );

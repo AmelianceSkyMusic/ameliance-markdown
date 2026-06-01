@@ -6,7 +6,7 @@ import type { EditorMessage } from '../shared/types';
 export class LiveEditorProvider implements vscode.CustomTextEditorProvider {
   constructor(
     private readonly context: vscode.ExtensionContext,
-    private readonly activePanels: Set<vscode.WebviewPanel>
+    private readonly activePanels: Map<vscode.WebviewPanel, vscode.Uri>
   ) {}
 
   async resolveCustomTextEditor(
@@ -14,7 +14,7 @@ export class LiveEditorProvider implements vscode.CustomTextEditorProvider {
     webviewPanel: vscode.WebviewPanel,
     _token: vscode.CancellationToken
   ): Promise<void> {
-    this.activePanels.add(webviewPanel);
+    this.activePanels.set(webviewPanel, document.uri);
     webviewPanel.onDidDispose(() => this.activePanels.delete(webviewPanel));
 
     webviewPanel.webview.options = { enableScripts: true };

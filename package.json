@@ -25,17 +25,17 @@
 		"commands": [
 			{
 				"command": "ameliance-markdown.toggleSource",
-				"title": "Toggle Markdown / WYSIWYG",
+				"title": "Open Raw Markdown File",
 				"icon": "$(markdown)"
 			}
 		],
 		"menus": {
 			"editor/title": [
-				{
-					"command": "ameliance-markdown.toggleSource",
-					"group": "navigation",
-					"when": "activeCustomEditorId == 'ameliance-markdown.preview'"
-				}
+			{
+				"command": "ameliance-markdown.toggleSource",
+				"group": "navigation",
+				"when": "resourceExtname == .md"
+			}
 			]
 		},
 		"customEditors": [
