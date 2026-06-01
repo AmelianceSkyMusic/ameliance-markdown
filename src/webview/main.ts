@@ -204,17 +204,23 @@ import type { EditorMessage } from '../shared/types';
 
   // ── Toolbar Commands ──
 
+  let savedPmSel: any = null;
+
   document.querySelectorAll('.pm-toolbar button').forEach(btn => {
-    btn.addEventListener('mousedown', e => e.preventDefault());
+    btn.addEventListener('mousedown', e => {
+      e.preventDefault();
+      if (pmView) savedPmSel = pmView.state.selection;
+    });
   });
 
   function cmd(fn: () => boolean) {
     return () => {
       if (!pmView) return;
-      const scrollTop = editorContainer.scrollTop;
+      if (savedPmSel) {
+        pmView.dispatch(pmView.state.tr.setSelection(savedPmSel));
+        savedPmSel = null;
+      }
       fn();
-      pmView.dom.focus({preventScroll: true});
-      editorContainer.scrollTop = scrollTop;
     };
   }
 

@@ -44074,16 +44074,21 @@
         setMode(!isSourceMode);
       }
     });
+    let savedPmSel = null;
     document.querySelectorAll(".pm-toolbar button").forEach((btn) => {
-      btn.addEventListener("mousedown", (e) => e.preventDefault());
+      btn.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        if (pmView) savedPmSel = pmView.state.selection;
+      });
     });
     function cmd2(fn) {
       return () => {
         if (!pmView) return;
-        const scrollTop = editorContainer.scrollTop;
+        if (savedPmSel) {
+          pmView.dispatch(pmView.state.tr.setSelection(savedPmSel));
+          savedPmSel = null;
+        }
         fn();
-        pmView.dom.focus({ preventScroll: true });
-        editorContainer.scrollTop = scrollTop;
       };
     }
     document.getElementById("pm-undo")?.addEventListener("click", cmd2(() => undo2(pmView.state, pmView.dispatch)));
