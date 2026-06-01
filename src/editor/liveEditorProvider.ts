@@ -182,8 +182,8 @@ body{
   <button id="pm-link" title="Insert Link">🔗</button>
   <button id="pm-image" title="Insert Image">🖼</button>
   <span style="flex:1"></span>
-  <button id="pm-mode-source" class="mode-btn active">Source</button>
-  <button id="pm-mode-visual" class="mode-btn">Visual</button>
+  <button id="pm-mode-visual" class="mode-btn active">Visual</button>
+  <button id="pm-mode-source" class="mode-btn">Source</button>
 </div>
 <div id="prosemirror" class="active"></div>
 <div id="source-editor"></div>
