@@ -173,6 +173,8 @@ body{
 #source-editor.active{display:block}
 #source-editor .cm-editor{height:100%}
 #source-editor .cm-scroller{overflow:auto}
+#source-editor .cm-gutters{background:var(--vscode-editor-background);border-right:1px solid var(--vscode-panel-border);color:var(--vscode-editorLineNumber-foreground);user-select:none}
+#source-editor .cm-activeLineGutter{background:var(--vscode-editor-lineHighlightBackground)}
 .pm-toolbar .mode-btn{padding:3px 12px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
 .pm-toolbar .mode-btn.active{background:var(--vscode-button-background);color:var(--vscode-button-foreground)}
 </style>

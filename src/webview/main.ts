@@ -1,4 +1,4 @@
-import { EditorView, keymap, highlightActiveLine } from '@codemirror/view';
+import { EditorView, keymap, highlightActiveLine, lineNumbers } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
@@ -144,6 +144,7 @@ import type { EditorMessage } from '../shared/types';
         doc: '',
         extensions: [
           markdown(),
+          lineNumbers(),
           EditorView.lineWrapping,
           highlightActiveLine(),
           history(),
