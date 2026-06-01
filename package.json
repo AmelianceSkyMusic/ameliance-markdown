@@ -1,0 +1,95 @@
+{
+	"name": "ameliance-markdown",
+	"displayName": "Amelian's Markdown",
+	"description": "3-mode Markdown editor: Source (CodeMirror), Live Preview, WYSIWYG (ProseMirror)",
+	"publisher": "ameliance-skymusic",
+	"version": "0.1.0",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/AmelianceSkyMusic/ameliance-markdown.git"
+	},
+	"icon": "images/markdown-icon.png",
+	"author": "Ameliance SkyMusic <AmelianceSkyMusic@gmail.com>",
+	"engines": {
+		"vscode": "^1.89.0"
+	},
+	"categories": [
+		"Notebooks",
+		"Programming Languages"
+	],
+	"activationEvents": [
+		"onCustomEditor:ameliance-markdown.preview"
+	],
+	"main": "./out/extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"command": "ameliance-markdown.toggleSource",
+				"title": "Toggle Markdown / WYSIWYG",
+				"icon": "$(markdown)"
+			}
+		],
+		"menus": {
+			"editor/title": [
+				{
+					"command": "ameliance-markdown.toggleSource",
+					"group": "navigation",
+					"when": "activeCustomEditorId == 'ameliance-markdown.preview'"
+				}
+			]
+		},
+		"customEditors": [
+			{
+				"viewType": "ameliance-markdown.preview",
+				"displayName": "Amelian's Markdown",
+				"selector": [
+					{
+						"filenamePattern": "*.md"
+					}
+				],
+				"priority": "default"
+			}
+		]
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run build",
+		"build": "npm run build:ext && npm run build:webview",
+		"build:ext": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
+		"build:webview": "esbuild src/webview/main.ts --bundle --outfile=out/webview.js --format=iife --platform=browser",
+		"watch": "concurrently \"npm run watch:ext\" \"npm run watch:webview\"",
+		"watch:ext": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --watch",
+		"watch:webview": "esbuild src/webview/main.ts --bundle --outfile=out/webview.js --format=iife --platform=browser --watch",
+		"pretest": "npm run build && npm run lint",
+		"lint": "eslint src --ext ts",
+		"test": "vscode-test"
+	},
+	"devDependencies": {
+		"@types/mocha": "^10.0.6",
+		"@types/node": "18.x",
+		"@types/vscode": "^1.89.0",
+		"@typescript-eslint/eslint-plugin": "^7.7.1",
+		"@typescript-eslint/parser": "^7.7.1",
+		"@vscode/test-cli": "^0.0.8",
+		"@vscode/test-electron": "^2.3.9",
+		"concurrently": "^8.2.2",
+		"esbuild": "^0.21.5",
+		"eslint": "^8.57.0",
+		"typescript": "^5.4.5"
+	},
+	"dependencies": {
+		"@codemirror/lang-markdown": "^6.5.0",
+		"codemirror": "^6.0.2",
+		"prosemirror-commands": "^1.7.1",
+		"prosemirror-gapcursor": "^1.4.1",
+		"prosemirror-history": "^1.5.0",
+		"prosemirror-inputrules": "^1.5.1",
+		"prosemirror-keymap": "^1.2.3",
+		"prosemirror-markdown": "^1.13.4",
+		"prosemirror-model": "^1.25.7",
+		"prosemirror-schema-basic": "^1.2.4",
+		"prosemirror-schema-list": "^1.5.1",
+		"prosemirror-state": "^1.4.4",
+		"prosemirror-transform": "^1.12.0",
+		"prosemirror-view": "^1.41.8"
+	}
+}
