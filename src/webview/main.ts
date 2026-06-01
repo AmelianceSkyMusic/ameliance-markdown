@@ -205,11 +205,14 @@ import type { EditorMessage } from '../shared/types';
   // ── Toolbar Commands ──
 
   document.querySelectorAll('.pm-toolbar button').forEach(btn => {
-    btn.addEventListener('mousedown', e => e.preventDefault());
+    btn.addEventListener('mousedown', e => {
+      e.preventDefault();
+      pmView?.focus();
+    });
   });
 
   function cmd(fn: () => boolean) {
-    return () => { if (pmView) { fn(); pmView.focus(); } };
+    return () => { if (pmView) { pmView.focus(); fn(); } };
   }
 
   document.getElementById('pm-undo')?.addEventListener('click', cmd(() => undo(pmView!.state, pmView!.dispatch)));

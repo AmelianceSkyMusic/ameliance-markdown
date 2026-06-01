@@ -44075,13 +44075,16 @@
       }
     });
     document.querySelectorAll(".pm-toolbar button").forEach((btn) => {
-      btn.addEventListener("mousedown", (e) => e.preventDefault());
+      btn.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        pmView?.focus();
+      });
     });
     function cmd2(fn) {
       return () => {
         if (pmView) {
-          fn();
           pmView.focus();
+          fn();
         }
       };
     }
