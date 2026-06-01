@@ -44074,6 +44074,9 @@
         setMode(!isSourceMode);
       }
     });
+    document.querySelectorAll(".pm-toolbar button").forEach((btn) => {
+      btn.addEventListener("mousedown", (e) => e.preventDefault());
+    });
     function cmd2(fn) {
       return () => {
         if (pmView) {

@@ -204,6 +204,10 @@ import type { EditorMessage } from '../shared/types';
 
   // ── Toolbar Commands ──
 
+  document.querySelectorAll('.pm-toolbar button').forEach(btn => {
+    btn.addEventListener('mousedown', e => e.preventDefault());
+  });
+
   function cmd(fn: () => boolean) {
     return () => { if (pmView) { fn(); pmView.focus(); } };
   }
