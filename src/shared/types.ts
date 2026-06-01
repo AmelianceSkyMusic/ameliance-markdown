@@ -4,5 +4,5 @@ export type EditorMessage =
   | { type: 'content'; text: string }
   | { type: 'toggleSource' }
   | { type: 'requestFileTree' }
-  | { type: 'fileTree'; files: string[] }
+  | { type: 'fileTree'; files: string[]; gitignored?: string[] }
   | { type: 'openFileFromTree'; path: string };

@@ -44046,7 +44046,10 @@
     const searchCaseBtn = document.getElementById("tree-search-case");
     const searchIncludeInput = document.getElementById("tree-search-include");
     const searchExcludeInput = document.getElementById("tree-search-exclude");
+    const searchGitignore = document.getElementById("tree-search-gitignore");
     let filteredFiles = null;
+    let gitignoredFiles = [];
+    let gitignoreOn = false;
     function globToRegex(pattern) {
       const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".");
       return new RegExp("^" + escaped + "$", "i");
@@ -44064,9 +44067,26 @@
     }
     function applySearch() {
       const q = searchQuery.trim();
+      let base3 = treeData;
+      if (gitignoreOn && gitignoredFiles.length) {
+        const set2 = new Set(gitignoredFiles);
+        const filtered = (nodes) => {
+          const out = [];
+          for (const n of nodes) {
+            if (n.type === "file") {
+              if (!set2.has(n.path)) out.push({ ...n });
+            } else {
+              const kids = filtered(n.children);
+              if (kids.length) out.push({ ...n, children: kids, expanded: true });
+            }
+          }
+          return out;
+        };
+        base3 = filtered(base3);
+      }
       if (!q) {
         filteredFiles = null;
-        treeContent.innerHTML = renderTree(treeData);
+        treeContent.innerHTML = renderTree(base3);
         attachTreeHandlers();
         return;
       }
@@ -44077,7 +44097,7 @@
           if (n.children.length) collectFiles(n.children);
         }
       }
-      collectFiles(treeData);
+      collectFiles(base3);
       const matched = [];
       for (const f of files) {
         const name2 = f.split("/").pop() || f;
@@ -44111,6 +44131,8 @@
         searchIncludeInput.value = "";
         searchExclude = "";
         searchExcludeInput.value = "";
+        searchGitignore.checked = false;
+        gitignoreOn = false;
         filteredFiles = null;
         applySearch();
       }
@@ -44137,6 +44159,10 @@
       searchExclude = searchExcludeInput.value;
       applySearch();
     });
+    searchGitignore.addEventListener("change", () => {
+      gitignoreOn = searchGitignore.checked;
+      applySearch();
+    });
     window.addEventListener("message", (event) => {
       const msg = event.data;
       if (msg.type === "toggleSource") {
@@ -44161,6 +44187,7 @@
       }
       if (msg.type === "fileTree") {
         treeData = buildTree3(msg.files);
+        gitignoredFiles = msg.gitignored ?? [];
         applySearch();
       }
     });

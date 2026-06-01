@@ -417,7 +417,10 @@ import type { EditorMessage } from '../shared/types';
   const searchCaseBtn = document.getElementById('tree-search-case')!;
   const searchIncludeInput = document.getElementById('tree-search-include') as HTMLInputElement;
   const searchExcludeInput = document.getElementById('tree-search-exclude') as HTMLInputElement;
+  const searchGitignore = document.getElementById('tree-search-gitignore') as HTMLInputElement;
   let filteredFiles: string[] | null = null;
+  let gitignoredFiles: string[] = [];
+  let gitignoreOn = false;
 
   function globToRegex(pattern: string): RegExp {
     const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.');
@@ -438,9 +441,26 @@ import type { EditorMessage } from '../shared/types';
 
   function applySearch() {
     const q = searchQuery.trim();
+    let base = treeData;
+    if (gitignoreOn && gitignoredFiles.length) {
+      const set = new Set(gitignoredFiles);
+      const filtered = (nodes: TreeNode[]): TreeNode[] => {
+        const out: TreeNode[] = [];
+        for (const n of nodes) {
+          if (n.type === 'file') {
+            if (!set.has(n.path)) out.push({ ...n });
+          } else {
+            const kids = filtered(n.children);
+            if (kids.length) out.push({ ...n, children: kids, expanded: true });
+          }
+        }
+        return out;
+      };
+      base = filtered(base);
+    }
     if (!q) {
       filteredFiles = null;
-      treeContent.innerHTML = renderTree(treeData);
+      treeContent.innerHTML = renderTree(base);
       attachTreeHandlers();
       return;
     }
@@ -451,7 +471,7 @@ import type { EditorMessage } from '../shared/types';
         if (n.children.length) collectFiles(n.children);
       }
     }
-    collectFiles(treeData);
+    collectFiles(base);
     const matched: string[] = [];
     for (const f of files) {
       const name = f.split('/').pop() || f;
@@ -476,7 +496,7 @@ import type { EditorMessage } from '../shared/types';
     isSearchOpen = !isSearchOpen;
     searchBar.classList.toggle('active', isSearchOpen);
     if (isSearchOpen) searchInput.focus();
-    else { searchQuery = ''; searchInput.value = ''; searchInclude = ''; searchIncludeInput.value = ''; searchExclude = ''; searchExcludeInput.value = ''; filteredFiles = null; applySearch(); }
+    else { searchQuery = ''; searchInput.value = ''; searchInclude = ''; searchIncludeInput.value = ''; searchExclude = ''; searchExcludeInput.value = ''; searchGitignore.checked = false; gitignoreOn = false; filteredFiles = null; applySearch(); }
   });
 
   searchInput.addEventListener('input', () => { searchQuery = searchInput.value; applySearch(); });
@@ -484,6 +504,7 @@ import type { EditorMessage } from '../shared/types';
   searchCaseBtn.addEventListener('click', () => { searchCase = !searchCase; searchCaseBtn.classList.toggle('active', searchCase); applySearch(); });
   searchIncludeInput.addEventListener('input', () => { searchInclude = searchIncludeInput.value; applySearch(); });
   searchExcludeInput.addEventListener('input', () => { searchExclude = searchExcludeInput.value; applySearch(); });
+  searchGitignore.addEventListener('change', () => { gitignoreOn = searchGitignore.checked; applySearch(); });
 
   // ── Extension Messages ──
 
@@ -511,6 +532,7 @@ import type { EditorMessage } from '../shared/types';
     }
     if (msg.type === 'fileTree') {
       treeData = buildTree(msg.files);
+      gitignoredFiles = msg.gitignored ?? [];
       applySearch();
     }
   });

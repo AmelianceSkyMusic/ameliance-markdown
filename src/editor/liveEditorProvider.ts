@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import ignore from 'ignore';
 import type { EditorMessage } from '../shared/types';
 
 export class LiveEditorProvider implements vscode.CustomTextEditorProvider {
@@ -68,7 +69,17 @@ export class LiveEditorProvider implements vscode.CustomTextEditorProvider {
           const relPaths = files
             .map(f => path.relative(root.fsPath, f.fsPath).replace(/\\/g, '/'))
             .sort();
-          webviewPanel.webview.postMessage({ type: 'fileTree', files: relPaths } satisfies EditorMessage);
+          let gitignoredPaths: string[] = [];
+          try {
+            const gitignorePath = path.join(root.fsPath, '.gitignore');
+            if (fs.existsSync(gitignorePath)) {
+              const ig = ignore();
+              const content = fs.readFileSync(gitignorePath, 'utf-8');
+              ig.add(content);
+              gitignoredPaths = relPaths.filter(f => ig.ignores(f));
+            }
+          } catch {}
+          webviewPanel.webview.postMessage({ type: 'fileTree', files: relPaths, gitignored: gitignoredPaths } satisfies EditorMessage);
           break;
         case 'openFileFromTree':
           if (wf) {
@@ -191,6 +202,8 @@ body{
 .tree-search-options .search-option{padding:2px 6px;border:1px solid transparent;background:transparent;color:var(--vscode-editor-foreground);cursor:pointer;border-radius:3px;font-size:11px;font-weight:600;line-height:1;font-family:inherit}
 .tree-search-options .search-option:hover{border-color:var(--vscode-panel-border)}
 .tree-search-options .search-option.active{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border-color:var(--vscode-button-background)}
+.tree-gitignore-label{display:flex;align-items:center;gap:3px;font-size:11px;cursor:pointer;white-space:nowrap;color:var(--vscode-editor-foreground);user-select:none}
+.tree-gitignore-label input{margin:0;cursor:pointer}
 .tree-content{flex:1;overflow-y:auto;padding:4px 0}
 .tree-item{display:flex;align-items:center;padding:2px 8px;cursor:pointer;white-space:nowrap;user-select:none}
 .tree-item:hover{background:var(--vscode-list-hoverBackground)}
@@ -245,6 +258,7 @@ body{
       <div class="tree-search-options">
         <button id="tree-search-regex" class="search-option" title="Use Regex">.*</button>
         <button id="tree-search-case" class="search-option" title="Match Case">Aa</button>
+        <label class="tree-gitignore-label" title="Respect .gitignore"><input type="checkbox" id="tree-search-gitignore"> .gitignore</label>
         <input id="tree-search-include" type="text" placeholder="include" style="flex:1;min-width:0">
         <input id="tree-search-exclude" type="text" placeholder="exclude" style="flex:1;min-width:0">
       </div>
