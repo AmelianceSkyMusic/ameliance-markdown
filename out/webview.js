@@ -44075,17 +44075,15 @@
       }
     });
     document.querySelectorAll(".pm-toolbar button").forEach((btn) => {
-      btn.addEventListener("mousedown", (e) => {
-        e.preventDefault();
-        pmView?.focus();
-      });
+      btn.addEventListener("mousedown", (e) => e.preventDefault());
     });
     function cmd2(fn) {
       return () => {
-        if (pmView) {
-          pmView.focus();
-          fn();
-        }
+        if (!pmView) return;
+        const scrollTop = editorContainer.scrollTop;
+        fn();
+        pmView.dom.focus({ preventScroll: true });
+        editorContainer.scrollTop = scrollTop;
       };
     }
     document.getElementById("pm-undo")?.addEventListener("click", cmd2(() => undo2(pmView.state, pmView.dispatch)));
