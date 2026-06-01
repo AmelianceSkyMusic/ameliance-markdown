@@ -272,6 +272,219 @@ import type { EditorMessage } from '../shared/types';
     }
   });
 
+  // ── File Tree Panel ──
+
+  let isTreeOpen = false;
+  let treeDock: 'left' | 'right' = 'left';
+  let treeData: TreeNode[] = [];
+
+  const treePanel = document.getElementById('file-tree-panel')!;
+  const treeContent = document.getElementById('tree-content')!;
+  const treeToggle = document.getElementById('pm-tree-toggle')!;
+  const treeClose = document.getElementById('pm-tree-close')!;
+  const treeDockBtn = document.getElementById('pm-tree-dock')!;
+
+  interface TreeNode {
+    name: string;
+    path: string;
+    type: 'file' | 'dir';
+    children: TreeNode[];
+    expanded: boolean;
+  }
+
+  function buildTree(files: string[]): TreeNode[] {
+    const root: TreeNode[] = [];
+    for (const file of files) {
+      const parts = file.split('/');
+      let current = root;
+      for (let i = 0; i < parts.length; i++) {
+        const isFile = i === parts.length - 1;
+        const name = parts[i];
+        const existing = current.find(n => n.name === name && (isFile ? n.type === 'file' : n.type === 'dir'));
+        if (existing) {
+          if (isFile) break;
+          current = existing.children;
+        } else {
+          const node: TreeNode = {
+            name,
+            path: isFile ? file : '',
+            type: isFile ? 'file' : 'dir',
+            children: isFile ? [] : [],
+            expanded: true,
+          };
+          current.push(node);
+          if (!isFile) current = node.children;
+        }
+      }
+    }
+    return root;
+  }
+
+  function renderTree(nodes: TreeNode[], depth = 0) {
+    let html = '';
+    for (const node of nodes) {
+      if (node.type === 'dir') {
+        html += `<div class="tree-item" data-type="dir" data-path="${node.path}">`;
+        html += `<span class="indent" style="width:${depth * 16}px"></span>`;
+        html += `<span class="chevron">${node.expanded ? '▼' : '▶'}</span>`;
+        html += `<span class="icon">📁</span>`;
+        html += `<span class="label">${node.name}</span></div>`;
+        if (node.expanded) {
+          html += renderTree(node.children, depth + 1);
+        }
+      } else {
+        html += `<div class="tree-item file" data-type="file" data-path="${node.path}">`;
+        html += `<span class="indent" style="width:${depth * 16}px"></span>`;
+        html += `<span class="chevron"></span>`;
+        html += `<span class="icon">📄</span>`;
+        html += `<span class="label">${node.name}</span></div>`;
+      }
+    }
+    return html;
+  }
+
+  function toggleDir(el: HTMLElement) {
+    const isDir = el.dataset.type === 'dir';
+    if (!isDir) return;
+    const path = el.dataset.path || '';
+    const parts = path.split('/');
+    function toggleNode(nodes: TreeNode[]): boolean {
+      for (const n of nodes) {
+        if (n.type === 'dir' && n.path === path) {
+          n.expanded = !n.expanded;
+          return true;
+        }
+        if (n.children.length && toggleNode(n.children)) return true;
+      }
+      return false;
+    }
+    toggleNode(treeData);
+    treeContent.innerHTML = renderTree(treeData);
+    attachTreeHandlers();
+  }
+
+  function attachTreeHandlers() {
+    treeContent.querySelectorAll('.tree-item').forEach(el => {
+      el.addEventListener('click', (e) => {
+        const target = e.currentTarget as HTMLElement;
+        const type = target.dataset.type;
+        if (type === 'dir') {
+          toggleDir(target);
+        } else if (type === 'file') {
+          const path = target.dataset.path;
+          if (path) {
+            vscode.postMessage({ type: 'openFileFromTree', path } satisfies EditorMessage);
+          }
+        }
+      });
+    });
+  }
+
+  treeToggle.addEventListener('click', () => {
+    isTreeOpen = !isTreeOpen;
+    if (isTreeOpen) {
+      vscode.postMessage({ type: 'requestFileTree' } satisfies EditorMessage);
+      treePanel.classList.add('active');
+      if (treeDock === 'right') treePanel.classList.add('dock-right');
+    } else {
+      treePanel.classList.remove('active');
+    }
+  });
+
+  treeClose.addEventListener('click', () => {
+    isTreeOpen = false;
+    treePanel.classList.remove('active');
+  });
+
+  treeDockBtn.addEventListener('click', () => {
+    treeDock = treeDock === 'left' ? 'right' : 'left';
+    treePanel.classList.toggle('dock-right', treeDock === 'right');
+  });
+
+  // ── File Tree Search ──
+
+  let isSearchOpen = false;
+  let searchQuery = '';
+  let searchRegex = false;
+  let searchCase = false;
+  let searchInclude = '';
+  let searchExclude = '';
+
+  const searchBtn = document.getElementById('pm-tree-search-btn')!;
+  const searchBar = document.getElementById('tree-search-bar')!;
+  const searchInput = document.getElementById('tree-search-input') as HTMLInputElement;
+  const searchRegexBtn = document.getElementById('tree-search-regex')!;
+  const searchCaseBtn = document.getElementById('tree-search-case')!;
+  const searchIncludeInput = document.getElementById('tree-search-include') as HTMLInputElement;
+  const searchExcludeInput = document.getElementById('tree-search-exclude') as HTMLInputElement;
+  let filteredFiles: string[] | null = null;
+
+  function globToRegex(pattern: string): RegExp {
+    const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.');
+    return new RegExp('^' + escaped + '$', 'i');
+  }
+
+  function matchesFilter(path: string): boolean {
+    if (searchInclude) {
+      const includes = searchInclude.split(',').map(s => s.trim()).filter(Boolean).map(globToRegex);
+      if (includes.length && !includes.some(r => r.test(path))) return false;
+    }
+    if (searchExclude) {
+      const excludes = searchExclude.split(',').map(s => s.trim()).filter(Boolean).map(s => s.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.'));
+      if (excludes.some(r => path.match(new RegExp('^' + r + '$', 'i')))) return false;
+    }
+    return true;
+  }
+
+  function applySearch() {
+    const q = searchQuery.trim();
+    if (!q) {
+      filteredFiles = null;
+      treeContent.innerHTML = renderTree(treeData);
+      attachTreeHandlers();
+      return;
+    }
+    const files: string[] = [];
+    function collectFiles(nodes: TreeNode[]) {
+      for (const n of nodes) {
+        if (n.type === 'file') files.push(n.path);
+        if (n.children.length) collectFiles(n.children);
+      }
+    }
+    collectFiles(treeData);
+    const matched: string[] = [];
+    for (const f of files) {
+      const name = f.split('/').pop() || f;
+      const testStr = searchCase ? name : name.toLowerCase();
+      const testQ = searchCase ? q : q.toLowerCase();
+      let ok: boolean;
+      if (searchRegex) {
+        try { ok = new RegExp(testQ, searchCase ? '' : 'i').test(name); }
+        catch { ok = false; }
+      } else {
+        ok = testStr.includes(testQ);
+      }
+      if (ok && matchesFilter(f)) matched.push(f);
+    }
+    filteredFiles = matched;
+    const filteredTree = buildTree(matched);
+    treeContent.innerHTML = renderTree(filteredTree);
+    attachTreeHandlers();
+  }
+
+  searchBtn.addEventListener('click', () => {
+    isSearchOpen = !isSearchOpen;
+    searchBar.classList.toggle('active', isSearchOpen);
+    if (isSearchOpen) searchInput.focus();
+    else { searchQuery = ''; searchInput.value = ''; searchInclude = ''; searchIncludeInput.value = ''; searchExclude = ''; searchExcludeInput.value = ''; filteredFiles = null; applySearch(); }
+  });
+
+  searchInput.addEventListener('input', () => { searchQuery = searchInput.value; applySearch(); });
+  searchRegexBtn.addEventListener('click', () => { searchRegex = !searchRegex; searchRegexBtn.classList.toggle('active', searchRegex); applySearch(); });
+  searchCaseBtn.addEventListener('click', () => { searchCase = !searchCase; searchCaseBtn.classList.toggle('active', searchCase); applySearch(); });
+  searchIncludeInput.addEventListener('input', () => { searchInclude = searchIncludeInput.value; applySearch(); });
+  searchExcludeInput.addEventListener('input', () => { searchExclude = searchExcludeInput.value; applySearch(); });
+
   // ── Extension Messages ──
 
   window.addEventListener('message', (event: MessageEvent<EditorMessage>) => {
@@ -295,6 +508,10 @@ import type { EditorMessage } from '../shared/types';
         );
       }
       isExternalUpdate = false;
+    }
+    if (msg.type === 'fileTree') {
+      treeData = buildTree(msg.files);
+      applySearch();
     }
   });
 

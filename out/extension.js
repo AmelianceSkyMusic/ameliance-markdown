@@ -66,7 +66,8 @@ var LiveEditorProvider = class {
       sendContent();
     });
     webviewPanel.onDidDispose(() => changeSubscription.dispose());
-    webviewPanel.webview.onDidReceiveMessage((message) => {
+    webviewPanel.webview.onDidReceiveMessage(async (message) => {
+      const wf = vscode.workspace.workspaceFolders;
       switch (message.type) {
         case "ready":
           sendContent();
@@ -81,6 +82,24 @@ var LiveEditorProvider = class {
             );
             edit.replace(document.uri, fullRange, message.text);
             vscode.workspace.applyEdit(edit);
+          }
+          break;
+        case "requestFileTree":
+          if (!wf) {
+            webviewPanel.webview.postMessage({ type: "fileTree", files: [] });
+            break;
+          }
+          const root = wf[0].uri;
+          const files = await vscode.workspace.findFiles("**/*.md", "**/node_modules/**");
+          const relPaths = files.map((f) => path.relative(root.fsPath, f.fsPath).replace(/\\/g, "/")).sort();
+          webviewPanel.webview.postMessage({ type: "fileTree", files: relPaths });
+          break;
+        case "openFileFromTree":
+          if (wf) {
+            const absPath = path.join(wf[0].uri.fsPath, message.path);
+            const uri = vscode.Uri.file(absPath);
+            const doc = await vscode.workspace.openTextDocument(uri);
+            vscode.window.showTextDocument(doc);
           }
           break;
       }
@@ -177,6 +196,31 @@ body{
 #source-editor .cm-activeLineGutter{background:var(--vscode-editor-lineHighlightBackground)}
 .pm-toolbar .mode-btn{padding:3px 12px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
 .pm-toolbar .mode-btn.active{background:var(--vscode-button-background);color:var(--vscode-button-foreground)}
+.editor-body{display:flex;flex:1;overflow:hidden}
+.editor-area{display:flex;flex:1;overflow:hidden;flex-direction:column}
+#file-tree-panel{display:none;width:260px;flex-shrink:0;overflow-y:auto;background:var(--vscode-sideBar-background);border-right:1px solid var(--vscode-panel-border);font-size:13px}
+#file-tree-panel.active{display:flex;flex-direction:column}
+#file-tree-panel.dock-right{order:1;border-right:none;border-left:1px solid var(--vscode-panel-border)}
+.tree-header{display:flex;align-items:center;padding:8px 12px;text-transform:uppercase;font-size:11px;font-weight:600;letter-spacing:.8px;color:var(--vscode-editor-foreground);border-bottom:1px solid var(--vscode-panel-border);flex-shrink:0}
+.tree-header span{flex:1}
+.tree-header button{padding:2px 6px;border:none;background:transparent;color:var(--vscode-editor-foreground);cursor:pointer;border-radius:4px;font-size:13px;line-height:1}
+.tree-header button:hover{background:var(--vscode-toolbar-hoverBackground)}
+.tree-search-bar{display:none;flex-direction:column;padding:4px 8px;border-bottom:1px solid var(--vscode-panel-border);gap:3px;flex-shrink:0}
+.tree-search-bar.active{display:flex}
+.tree-search-bar input{padding:3px 6px;border:1px solid var(--vscode-input-border);background:var(--vscode-input-background);color:var(--vscode-input-foreground);border-radius:2px;font-size:12px;font-family:inherit;outline:none}
+.tree-search-bar input:focus{border-color:var(--vscode-focusBorder)}
+.tree-search-options{display:flex;gap:2px;align-items:center}
+.tree-search-options .search-option{padding:2px 6px;border:1px solid transparent;background:transparent;color:var(--vscode-editor-foreground);cursor:pointer;border-radius:3px;font-size:11px;font-weight:600;line-height:1;font-family:inherit}
+.tree-search-options .search-option:hover{border-color:var(--vscode-panel-border)}
+.tree-search-options .search-option.active{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border-color:var(--vscode-button-background)}
+.tree-content{flex:1;overflow-y:auto;padding:4px 0}
+.tree-item{display:flex;align-items:center;padding:2px 8px;cursor:pointer;white-space:nowrap;user-select:none}
+.tree-item:hover{background:var(--vscode-list-hoverBackground)}
+.tree-item .indent{display:inline-block;flex-shrink:0}
+.tree-item .chevron{display:inline-block;width:16px;text-align:center;flex-shrink:0;font-size:10px;color:var(--vscode-editor-foreground);opacity:.6}
+.tree-item .icon{display:inline-block;width:16px;text-align:center;flex-shrink:0;margin-right:4px;font-size:14px}
+.tree-item .label{overflow:hidden;text-overflow:ellipsis}
+.tree-item.file{padding-left:calc(8px + 16px + 4px)}
 </style>
 </head>
 <body>
@@ -206,11 +250,34 @@ body{
   <button id="pm-link" title="Insert Link">\u{1F517}</button>
   <button id="pm-image" title="Insert Image">\u{1F5BC}</button>
   <span style="flex:1"></span>
+  <button id="pm-tree-toggle" title="File Explorer">\u{1F4C2}</button>
   <button id="pm-mode-visual" class="mode-btn active">Visual</button>
   <button id="pm-mode-source" class="mode-btn">Source</button>
 </div>
-<div id="prosemirror" class="active"></div>
-<div id="source-editor"></div>
+<div class="editor-body">
+  <div id="file-tree-panel">
+    <div class="tree-header">
+      <span>Explorer</span>
+      <button id="pm-tree-search-btn" title="Search files">\u{1F50D}</button>
+      <button id="pm-tree-dock" title="Move to other side">\u21D4</button>
+      <button id="pm-tree-close" title="Close panel">\u2715</button>
+    </div>
+    <div id="tree-search-bar" class="tree-search-bar">
+      <input id="tree-search-input" type="text" placeholder="Search files..." spellcheck="false">
+      <div class="tree-search-options">
+        <button id="tree-search-regex" class="search-option" title="Use Regex">.*</button>
+        <button id="tree-search-case" class="search-option" title="Match Case">Aa</button>
+        <input id="tree-search-include" type="text" placeholder="include" style="flex:1;min-width:0">
+        <input id="tree-search-exclude" type="text" placeholder="exclude" style="flex:1;min-width:0">
+      </div>
+    </div>
+    <div id="tree-content" class="tree-content"></div>
+  </div>
+  <div class="editor-area">
+    <div id="prosemirror" class="active"></div>
+    <div id="source-editor"></div>
+  </div>
+</div>
 <script nonce="${nonce}">${scriptContent}</script>
 </body>
 </html>`;
