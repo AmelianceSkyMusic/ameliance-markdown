@@ -230,6 +230,13 @@ import type { EditorMessage } from '../shared/types';
     pmView.dispatch(pmView.state.tr.replaceSelectionWith(node).scrollIntoView());
     pmView.focus();
   });
+  document.getElementById('pm-clear')?.addEventListener('click', () => {
+    if (!pmView) return;
+    const { state, dispatch } = pmView;
+    dispatch(state.tr.removeMark(state.selection.from, state.selection.to));
+    setBlockType(schema.nodes.paragraph)(state, dispatch);
+    pmView.focus();
+  });
   document.getElementById('pm-link')?.addEventListener('click', () => {
     if (!pmView) return;
     const url = prompt('Enter URL:');

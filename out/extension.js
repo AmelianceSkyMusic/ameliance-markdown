@@ -181,8 +181,6 @@ body{
 </head>
 <body>
 <div id="pm-toolbar" class="pm-toolbar">
-  <button id="pm-source-toggle" title="Toggle Source (Ctrl+Shift+M)" style="font-weight:700;letter-spacing:-1px">&lt;/&gt;</button>
-  <span class="sep"></span>
   <button id="pm-undo" title="Undo (Ctrl+Z)">\u21A9</button>
   <button id="pm-redo" title="Redo (Ctrl+Y)">\u21AA</button>
   <span class="sep"></span>
@@ -204,6 +202,7 @@ body{
   <button id="pm-codeblock" title="Code Block">{ }</button>
   <button id="pm-hr" title="Horizontal Rule">\u2014</button>
   <span class="sep"></span>
+  <button id="pm-clear" title="Clear Formatting">T</button>
   <button id="pm-link" title="Insert Link">\u{1F517}</button>
   <button id="pm-image" title="Insert Image">\u{1F5BC}</button>
   <span style="flex:1"></span>

@@ -178,6 +178,7 @@ body{
   <button id="pm-codeblock" title="Code Block">{ }</button>
   <button id="pm-hr" title="Horizontal Rule">—</button>
   <span class="sep"></span>
+  <button id="pm-clear" title="Clear Formatting">T</button>
   <button id="pm-link" title="Insert Link">🔗</button>
   <button id="pm-image" title="Insert Image">🖼</button>
   <span style="flex:1"></span>
