@@ -12,7 +12,7 @@ import { history as pmHistory, undo, redo } from 'prosemirror-history';
 import { keymap as pmKeymap } from 'prosemirror-keymap';
 import { baseKeymap, toggleMark, setBlockType, wrapIn } from 'prosemirror-commands';
 import { wrapInList } from 'prosemirror-schema-list';
-import { gapCursor } from 'prosemirror-gapcursor';
+
 import MarkdownIt from 'markdown-it';
 import { MarkdownParser } from 'prosemirror-markdown';
 import type { EditorMessage } from '../shared/types';
@@ -111,7 +111,7 @@ import type { EditorMessage } from '../shared/types';
             'Mod-y': () => redo(pmView!.state, pmView!.dispatch) as boolean,
             'Mod-Shift-z': () => redo(pmView!.state, pmView!.dispatch) as boolean,
           }),
-          gapCursor(),
+
         ],
       });
 
