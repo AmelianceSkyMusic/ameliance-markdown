@@ -187,7 +187,7 @@ import type { EditorMessage } from '../shared/types';
         isExternalUpdate = true;
         initProseMirror(cmView.state.doc.toString());
         isExternalUpdate = false;
-        setTimeout(() => pmView?.focus(), 0);
+        setTimeout(() => pmView?.dom.focus({preventScroll: true}), 0);
       }
     }
   }
@@ -287,6 +287,7 @@ import type { EditorMessage } from '../shared/types';
         cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: msg.text } });
       } else if (!pmView) {
         initProseMirror(msg.text);
+        setTimeout(() => pmView?.dom.focus({preventScroll: true}), 0);
       } else {
         const doc = parser.parse(msg.text) || schema.topNodeType.create();
         pmView.dispatch(

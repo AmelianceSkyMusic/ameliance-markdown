@@ -44062,7 +44062,7 @@
           isExternalUpdate = true;
           initProseMirror(cmView.state.doc.toString());
           isExternalUpdate = false;
-          setTimeout(() => pmView?.focus(), 0);
+          setTimeout(() => pmView?.dom.focus({ preventScroll: true }), 0);
         }
       }
     }
@@ -44151,6 +44151,7 @@
           cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: msg.text } });
         } else if (!pmView) {
           initProseMirror(msg.text);
+          setTimeout(() => pmView?.dom.focus({ preventScroll: true }), 0);
         } else {
           const doc4 = parser5.parse(msg.text) || schema2.topNodeType.create();
           pmView.dispatch(
