@@ -277,6 +277,44 @@ import type { EditorMessage } from '../shared/types';
   let isTreeOpen = false;
   let treeDock: 'left' | 'right' = 'left';
   let treeData: TreeNode[] = [];
+  let treeSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  let restoreExpanded: string[] | null = null;
+
+  function getExpandedPaths(): string[] {
+    const out: string[] = [];
+    function walk(nodes: TreeNode[]) {
+      for (const n of nodes) {
+        if (n.type === 'dir') {
+          if (n.expanded) out.push(n.path || n.name);
+          walk(n.children);
+        }
+      }
+    }
+    walk(treeData);
+    return out;
+  }
+
+  function getTreeState() {
+    return {
+      isOpen: isTreeOpen,
+      dock: treeDock,
+      expanded: getExpandedPaths(),
+      gitignore: gitignoreOn,
+      searchQuery,
+      searchRegex,
+      searchCase,
+      searchInclude,
+      searchExclude,
+    };
+  }
+
+  function saveTreeState() {
+    if (!isTreeOpen) return;
+    if (treeSaveTimer) clearTimeout(treeSaveTimer);
+    treeSaveTimer = setTimeout(() => {
+      vscode.postMessage({ type: 'saveTreeState', state: getTreeState() } satisfies EditorMessage);
+    }, 300);
+  }
 
   const treePanel = document.getElementById('file-tree-panel')!;
   const treeContent = document.getElementById('tree-content')!;
@@ -361,6 +399,7 @@ import type { EditorMessage } from '../shared/types';
     toggleNode(treeData);
     treeContent.innerHTML = renderTree(treeData);
     attachTreeHandlers();
+    saveTreeState();
   }
 
   function attachTreeHandlers() {
@@ -389,16 +428,19 @@ import type { EditorMessage } from '../shared/types';
     } else {
       treePanel.classList.remove('active');
     }
+    saveTreeState();
   });
 
   treeClose.addEventListener('click', () => {
     isTreeOpen = false;
     treePanel.classList.remove('active');
+    saveTreeState();
   });
 
   treeDockBtn.addEventListener('click', () => {
     treeDock = treeDock === 'left' ? 'right' : 'left';
     treePanel.classList.toggle('dock-right', treeDock === 'right');
+    saveTreeState();
   });
 
   // ── File Tree Search ──
@@ -499,12 +541,13 @@ import type { EditorMessage } from '../shared/types';
     else { searchQuery = ''; searchInput.value = ''; searchInclude = ''; searchIncludeInput.value = ''; searchExclude = ''; searchExcludeInput.value = ''; searchGitignore.checked = false; gitignoreOn = false; filteredFiles = null; applySearch(); }
   });
 
-  searchInput.addEventListener('input', () => { searchQuery = searchInput.value; applySearch(); });
-  searchRegexBtn.addEventListener('click', () => { searchRegex = !searchRegex; searchRegexBtn.classList.toggle('active', searchRegex); applySearch(); });
-  searchCaseBtn.addEventListener('click', () => { searchCase = !searchCase; searchCaseBtn.classList.toggle('active', searchCase); applySearch(); });
-  searchIncludeInput.addEventListener('input', () => { searchInclude = searchIncludeInput.value; applySearch(); });
-  searchExcludeInput.addEventListener('input', () => { searchExclude = searchExcludeInput.value; applySearch(); });
-  searchGitignore.addEventListener('change', () => { gitignoreOn = searchGitignore.checked; applySearch(); });
+  const saveSearch = () => { applySearch(); saveTreeState(); };
+  searchInput.addEventListener('input', () => { searchQuery = searchInput.value; saveSearch(); });
+  searchRegexBtn.addEventListener('click', () => { searchRegex = !searchRegex; searchRegexBtn.classList.toggle('active', searchRegex); saveSearch(); });
+  searchCaseBtn.addEventListener('click', () => { searchCase = !searchCase; searchCaseBtn.classList.toggle('active', searchCase); saveSearch(); });
+  searchIncludeInput.addEventListener('input', () => { searchInclude = searchIncludeInput.value; saveSearch(); });
+  searchExcludeInput.addEventListener('input', () => { searchExclude = searchExcludeInput.value; saveSearch(); });
+  searchGitignore.addEventListener('change', () => { gitignoreOn = searchGitignore.checked; saveSearch(); });
 
   // ── Extension Messages ──
 
@@ -533,7 +576,48 @@ import type { EditorMessage } from '../shared/types';
     if (msg.type === 'fileTree') {
       treeData = buildTree(msg.files);
       gitignoredFiles = msg.gitignored ?? [];
+      if (restoreExpanded) {
+        function expandSaved(nodes: TreeNode[]) {
+          for (const n of nodes) {
+            if (n.type === 'dir') {
+              if (restoreExpanded!.includes(n.path || n.name)) {
+                n.expanded = true;
+                expandSaved(n.children);
+              } else {
+                n.expanded = false;
+              }
+            }
+          }
+        }
+        expandSaved(treeData);
+        restoreExpanded = null;
+      }
       applySearch();
+    }
+    if (msg.type === 'treeState' && msg.state) {
+      const s = msg.state;
+      isTreeOpen = s.isOpen;
+      treeDock = s.dock;
+      gitignoreOn = s.gitignore;
+      searchQuery = s.searchQuery;
+      searchRegex = s.searchRegex;
+      searchCase = s.searchCase;
+      searchInclude = s.searchInclude;
+      searchExclude = s.searchExclude;
+      restoreExpanded = s.expanded;
+      searchInput.value = searchQuery;
+      searchIncludeInput.value = searchInclude;
+      searchExcludeInput.value = searchExclude;
+      searchRegexBtn.classList.toggle('active', searchRegex);
+      searchCaseBtn.classList.toggle('active', searchCase);
+      searchGitignore.checked = gitignoreOn;
+      if (isTreeOpen) {
+        vscode.postMessage({ type: 'requestFileTree' } satisfies EditorMessage);
+        treePanel.classList.add('active');
+        searchBar.classList.toggle('active', !!searchQuery);
+        if (treeDock === 'right') treePanel.classList.add('dock-right');
+      }
+      saveTreeState();
     }
   });
 

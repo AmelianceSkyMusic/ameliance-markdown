@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import ignore from 'ignore';
-import type { EditorMessage } from '../shared/types';
+import type { EditorMessage, TreePanelState } from '../shared/types';
 
 export class LiveEditorProvider implements vscode.CustomTextEditorProvider {
   constructor(
@@ -46,6 +46,8 @@ export class LiveEditorProvider implements vscode.CustomTextEditorProvider {
       switch (message.type) {
         case 'ready':
           sendContent();
+          const saved = this.context.workspaceState.get<TreePanelState>('amelianceTreeState');
+          webviewPanel.webview.postMessage({ type: 'treeState', state: saved ?? undefined } satisfies EditorMessage);
           break;
         case 'edit':
           if (typeof message.text === 'string') {
@@ -88,6 +90,9 @@ export class LiveEditorProvider implements vscode.CustomTextEditorProvider {
             const doc = await vscode.workspace.openTextDocument(uri);
             vscode.window.showTextDocument(doc);
           }
+          break;
+        case 'saveTreeState':
+          this.context.workspaceState.update('amelianceTreeState', message.state);
           break;
       }
     });

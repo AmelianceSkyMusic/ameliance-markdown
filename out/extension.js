@@ -532,6 +532,8 @@ var LiveEditorProvider = class {
       switch (message.type) {
         case "ready":
           sendContent();
+          const saved = this.context.workspaceState.get("amelianceTreeState");
+          webviewPanel.webview.postMessage({ type: "treeState", state: saved ?? void 0 });
           break;
         case "edit":
           if (typeof message.text === "string") {
@@ -573,6 +575,9 @@ var LiveEditorProvider = class {
             const doc = await vscode.workspace.openTextDocument(uri);
             vscode.window.showTextDocument(doc);
           }
+          break;
+        case "saveTreeState":
+          this.context.workspaceState.update("amelianceTreeState", message.state);
           break;
       }
     });
