@@ -275,7 +275,7 @@ import type { EditorMessage } from '../shared/types';
   // ── File Tree Panel ──
 
   let isTreeOpen = false;
-  let treeDock: 'left' | 'right' = 'left';
+  let treeDock: 'left' | 'right' = 'right';
   let treeData: TreeNode[] = [];
   let treeSaveTimer: ReturnType<typeof setTimeout> | null = null;
   let restoreExpanded: string[] | null = null;
@@ -442,6 +442,16 @@ import type { EditorMessage } from '../shared/types';
     treePanel.classList.toggle('dock-right', treeDock === 'right');
     saveTreeState();
   });
+
+  const resizeHandle = document.getElementById('tree-resize-handle')!;
+  let isResizing = false;
+  resizeHandle.addEventListener('mousedown', (e) => { isResizing = true; e.preventDefault(); });
+  document.addEventListener('mousemove', (e) => {
+    if (!isResizing) return;
+    const rect = (treePanel.parentElement as HTMLElement).getBoundingClientRect();
+    treePanel.style.width = Math.max(150, Math.min(500, treeDock === 'left' ? e.clientX - rect.left : rect.right - e.clientX)) + 'px';
+  });
+  document.addEventListener('mouseup', () => { isResizing = false; });
 
   // ── File Tree Search ──
 

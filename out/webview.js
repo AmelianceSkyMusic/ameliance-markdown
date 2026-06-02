@@ -43924,7 +43924,7 @@
       }
     });
     let isTreeOpen = false;
-    let treeDock = "left";
+    let treeDock = "right";
     let treeData = [];
     let treeSaveTimer = null;
     let restoreExpanded = null;
@@ -44071,6 +44071,20 @@
       treeDock = treeDock === "left" ? "right" : "left";
       treePanel.classList.toggle("dock-right", treeDock === "right");
       saveTreeState();
+    });
+    const resizeHandle = document.getElementById("tree-resize-handle");
+    let isResizing = false;
+    resizeHandle.addEventListener("mousedown", (e) => {
+      isResizing = true;
+      e.preventDefault();
+    });
+    document.addEventListener("mousemove", (e) => {
+      if (!isResizing) return;
+      const rect = treePanel.parentElement.getBoundingClientRect();
+      treePanel.style.width = Math.max(150, Math.min(500, treeDock === "left" ? e.clientX - rect.left : rect.right - e.clientX)) + "px";
+    });
+    document.addEventListener("mouseup", () => {
+      isResizing = false;
     });
     let isSearchOpen = false;
     let searchQuery = "";

@@ -192,9 +192,13 @@ body{
 .pm-toolbar .mode-btn.active{background:var(--vscode-button-background);color:var(--vscode-button-foreground)}
 .editor-body{display:flex;flex:1;overflow:hidden}
 .editor-area{display:flex;flex:1;overflow:hidden;flex-direction:column}
-#file-tree-panel{display:none;width:260px;flex-shrink:0;overflow-y:auto;background:var(--vscode-sideBar-background);border-right:1px solid var(--vscode-panel-border);font-size:13px}
+#file-tree-panel{display:none;width:260px;flex-shrink:0;overflow-y:auto;background:var(--vscode-sideBar-background);border-right:1px solid var(--vscode-panel-border);font-size:13px;position:relative}
 #file-tree-panel.active{display:flex;flex-direction:column}
 #file-tree-panel.dock-right{order:1;border-right:none;border-left:1px solid var(--vscode-panel-border)}
+.tree-resize-handle{position:absolute;top:0;bottom:0;width:4px;cursor:col-resize;z-index:10;flex-shrink:0}
+#file-tree-panel:not(.dock-right) .tree-resize-handle{right:-2px}
+#file-tree-panel.dock-right .tree-resize-handle{left:-2px}
+.tree-resize-handle:hover{background:var(--vscode-focusBorder)}
 .tree-header{display:flex;align-items:center;padding:8px 12px;text-transform:uppercase;font-size:11px;font-weight:600;letter-spacing:.8px;color:var(--vscode-editor-foreground);border-bottom:1px solid var(--vscode-panel-border);flex-shrink:0}
 .tree-header span{flex:1}
 .tree-header button{padding:2px 6px;border:none;background:transparent;color:var(--vscode-editor-foreground);cursor:pointer;border-radius:4px;font-size:13px;line-height:1}
@@ -252,6 +256,7 @@ body{
 </div>
 <div class="editor-body">
   <div id="file-tree-panel">
+    <div id="tree-resize-handle" class="tree-resize-handle"></div>
     <div class="tree-header">
       <span>Explorer</span>
       <button id="pm-tree-search-btn" title="Search files">🔍</button>
