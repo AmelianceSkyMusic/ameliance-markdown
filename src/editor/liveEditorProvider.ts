@@ -20,11 +20,16 @@ export class LiveEditorProvider implements vscode.CustomTextEditorProvider {
 
     webviewPanel.webview.options = { enableScripts: true };
 
-    const codiconUri = webviewPanel.webview.asWebviewUri(
-      vscode.Uri.joinPath(this.context.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css')
+    const codiconFontUri = webviewPanel.webview.asWebviewUri(
+      vscode.Uri.joinPath(this.context.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.ttf')
     );
-    const cspOrigin = codiconUri.toString().replace(/\/[^/]*$/, '');
-    webviewPanel.webview.html = this.getHtml(codiconUri.toString(), cspOrigin);
+    const cspOrigin = new URL(codiconFontUri.toString()).origin;
+    let codiconCss = '';
+    try {
+      const cssPath = path.join(this.context.extensionPath, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css');
+      codiconCss = fs.readFileSync(cssPath, 'utf-8').replace('./codicon.ttf', codiconFontUri.toString());
+    } catch {}
+    webviewPanel.webview.html = this.getHtml(codiconCss, cspOrigin);
 
     let isApplyingEdit = false;
 
@@ -103,7 +108,7 @@ export class LiveEditorProvider implements vscode.CustomTextEditorProvider {
     });
   }
 
-  private getHtml(codiconCssUrl: string, cspOrigin: string): string {
+  private getHtml(codiconCss: string, cspOrigin: string): string {
     const nonce = getNonce();
     const scriptPath = path.join(this.context.extensionPath, 'out', 'webview.js');
     let scriptContent: string;
@@ -118,8 +123,8 @@ export class LiveEditorProvider implements vscode.CustomTextEditorProvider {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' ${cspOrigin}; script-src 'nonce-${nonce}'; font-src ${cspOrigin}; img-src data: https:;">
-<link rel="stylesheet" href="${codiconCssUrl}">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${cspOrigin}; img-src data: https:;">
+<style nonce="${nonce}">${codiconCss}</style>
 <style nonce="${nonce}">
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
