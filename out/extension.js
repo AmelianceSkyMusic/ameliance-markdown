@@ -510,17 +510,18 @@ var LiveEditorProvider = class {
     this.activePanels.set(webviewPanel, document.uri);
     webviewPanel.onDidDispose(() => this.activePanels.delete(webviewPanel));
     webviewPanel.webview.options = { enableScripts: true };
-    const codiconFontUri = webviewPanel.webview.asWebviewUri(
-      vscode.Uri.joinPath(this.context.extensionUri, "node_modules", "@vscode", "codicons", "dist", "codicon.ttf")
-    );
-    const cspOrigin = new URL(codiconFontUri.toString()).origin;
     let codiconCss = "";
     try {
-      const cssPath = path.join(this.context.extensionPath, "node_modules", "@vscode", "codicons", "dist", "codicon.css");
-      codiconCss = fs.readFileSync(cssPath, "utf-8").replace("./codicon.ttf", codiconFontUri.toString());
+      const ttfBase64 = fs.readFileSync(
+        path.join(this.context.extensionPath, "node_modules", "@vscode", "codicons", "dist", "codicon.ttf")
+      ).toString("base64");
+      codiconCss = fs.readFileSync(
+        path.join(this.context.extensionPath, "node_modules", "@vscode", "codicons", "dist", "codicon.css"),
+        "utf-8"
+      ).replace(/url\(.*?\)/, `url(data:font/ttf;base64,${ttfBase64})`);
     } catch {
     }
-    webviewPanel.webview.html = this.getHtml(codiconCss, cspOrigin);
+    webviewPanel.webview.html = this.getHtml(codiconCss);
     let isApplyingEdit = false;
     const sendContent = () => {
       webviewPanel.webview.postMessage({
@@ -592,7 +593,7 @@ var LiveEditorProvider = class {
       }
     });
   }
-  getHtml(codiconCss, cspOrigin) {
+  getHtml(codiconCss) {
     const nonce = getNonce();
     const scriptPath = path.join(this.context.extensionPath, "out", "webview.js");
     let scriptContent;
@@ -606,7 +607,7 @@ var LiveEditorProvider = class {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${cspOrigin}; img-src data: https:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src data:; img-src data: https:;">
 <style nonce="${nonce}">${codiconCss}</style>
 <style nonce="${nonce}">
 *{box-sizing:border-box;margin:0;padding:0}
@@ -719,13 +720,13 @@ body{
 </head>
 <body>
 <div id="pm-toolbar" class="pm-toolbar">
-  <button id="pm-undo" title="Undo (Ctrl+Z)">\u21A9</button>
-  <button id="pm-redo" title="Redo (Ctrl+Y)">\u21AA</button>
+  <button id="pm-undo" title="Undo (Ctrl+Z)"><i class="codicon codicon-discard"></i></button>
+  <button id="pm-redo" title="Redo (Ctrl+Y)"><i class="codicon codicon-redo"></i></button>
   <span class="sep"></span>
-  <button id="pm-bold" title="Bold (Ctrl+B)"><strong>B</strong></button>
-  <button id="pm-italic" title="Italic (Ctrl+I)"><em>I</em></button>
-  <button id="pm-strike" title="Strikethrough"><s>S</s></button>
-  <button id="pm-code" title="Inline Code">&lt;/&gt;</button>
+  <button id="pm-bold" title="Bold (Ctrl+B)"><i class="codicon codicon-bold"></i></button>
+  <button id="pm-italic" title="Italic (Ctrl+I)"><i class="codicon codicon-italic"></i></button>
+  <button id="pm-strike" title="Strikethrough"><i class="codicon codicon-strikethrough"></i></button>
+  <button id="pm-code" title="Inline Code"><i class="codicon codicon-code"></i></button>
   <span class="sep"></span>
   <button id="pm-h1" title="Heading 1">H1</button>
   <button id="pm-h2" title="Heading 2">H2</button>
@@ -734,17 +735,17 @@ body{
   <button id="pm-h5" title="Heading 5">H5</button>
   <button id="pm-h6" title="Heading 6">H6</button>
   <span class="sep"></span>
-  <button id="pm-ul" title="Bullet List">\u2261</button>
-  <button id="pm-ol" title="Numbered List">1.</button>
-  <button id="pm-quote" title="Blockquote">\u275D</button>
-  <button id="pm-codeblock" title="Code Block">{ }</button>
-  <button id="pm-hr" title="Horizontal Rule">\u2014</button>
+  <button id="pm-ul" title="Bullet List"><i class="codicon codicon-list-unordered"></i></button>
+  <button id="pm-ol" title="Numbered List"><i class="codicon codicon-list-ordered"></i></button>
+  <button id="pm-quote" title="Blockquote"><i class="codicon codicon-quote"></i></button>
+  <button id="pm-codeblock" title="Code Block"><i class="codicon codicon-file-code"></i></button>
+  <button id="pm-hr" title="Horizontal Rule"><i class="codicon codicon-horizontal-rule"></i></button>
   <span class="sep"></span>
-  <button id="pm-clear" title="Clear Formatting">T</button>
-  <button id="pm-link" title="Insert Link">\u{1F517}</button>
-  <button id="pm-image" title="Insert Image">\u{1F5BC}</button>
+  <button id="pm-clear" title="Clear Formatting"><i class="codicon codicon-eraser"></i></button>
+  <button id="pm-link" title="Insert Link"><i class="codicon codicon-link"></i></button>
+  <button id="pm-image" title="Insert Image"><i class="codicon codicon-file-media"></i></button>
   <span style="flex:1"></span>
-  <button id="pm-tree-toggle" title="File Explorer">\u{1F4C2}</button>
+  <button id="pm-tree-toggle" title="Toggle panel"><i class="codicon codicon-layout-sidebar-right"></i></button>
   <button id="pm-mode-visual" class="mode-btn active">Visual</button>
   <button id="pm-mode-source" class="mode-btn">Source</button>
 </div>
@@ -753,15 +754,15 @@ body{
     <div id="tree-resize-handle" class="tree-resize-handle"></div>
     <div class="tree-header">
       <span>Explorer</span>
-      <button id="pm-tree-search-btn" title="Search files">\u{1F50D}</button>
-      <button id="pm-tree-dock" title="Move to other side">\u21D4</button>
-      <button id="pm-tree-close" title="Close panel">\u2715</button>
+      <button id="pm-tree-search-btn" title="Search files"><i class="codicon codicon-search"></i></button>
+      <button id="pm-tree-dock" title="Move to other side"><i class="codicon codicon-arrow-both"></i></button>
+      <button id="pm-tree-close" title="Close panel"><i class="codicon codicon-close"></i></button>
     </div>
     <div id="tree-search-bar" class="tree-search-bar">
       <input id="tree-search-input" type="text" placeholder="Search files..." spellcheck="false">
       <div class="tree-search-options">
-        <button id="tree-search-regex" class="search-option" title="Use Regex">.*</button>
-        <button id="tree-search-case" class="search-option" title="Match Case">Aa</button>
+        <button id="tree-search-regex" class="search-option" title="Use Regex"><i class="codicon codicon-regex"></i></button>
+        <button id="tree-search-case" class="search-option" title="Match Case"><i class="codicon codicon-case-sensitive"></i></button>
         <label class="tree-gitignore-label" title="Respect .gitignore"><input type="checkbox" id="tree-search-gitignore"> .gitignore</label>
         <input id="tree-search-include" type="text" placeholder="include" style="flex:1;min-width:0">
         <input id="tree-search-exclude" type="text" placeholder="exclude" style="flex:1;min-width:0">

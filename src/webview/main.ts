@@ -322,6 +322,11 @@ import type { EditorMessage } from '../shared/types';
   const treeClose = document.getElementById('pm-tree-close')!;
   const treeDockBtn = document.getElementById('pm-tree-dock')!;
 
+  function updateTreeToggleIcon() {
+    const icon = treeToggle.querySelector('.codicon')!;
+    icon.className = `codicon codicon-layout-sidebar-${treeDock}`;
+  }
+
   interface TreeNode {
     name: string;
     path: string;
@@ -366,7 +371,7 @@ import type { EditorMessage } from '../shared/types';
       const isDir = node.type === 'dir';
       html += `<div class="tree-item${isDir ? '' : ' file'}" data-type="${node.type}" data-path="${node.path}">`;
       html += `<span class="indent" style="width:${depth * indentUnit}px"></span>`;
-      html += `<span class="chevron">${isDir ? (node.expanded ? '▼' : '▶') : ''}</span>`;
+      html += `<span class="chevron">${isDir ? `<i class="codicon ${node.expanded ? 'codicon-chevron-down' : 'codicon-chevron-right'}"></i>` : ''}</span>`;
       html += `<span class="icon codicon ${isDir ? 'codicon-folder' : 'codicon-file'}"></span>`;
       html += `<span class="label">${node.name}</span></div>`;
       if (isDir && node.expanded) {
@@ -435,6 +440,7 @@ import type { EditorMessage } from '../shared/types';
   treeDockBtn.addEventListener('click', () => {
     treeDock = treeDock === 'left' ? 'right' : 'left';
     treePanel.classList.toggle('dock-right', treeDock === 'right');
+    updateTreeToggleIcon();
     saveTreeState();
   });
 
@@ -622,9 +628,11 @@ import type { EditorMessage } from '../shared/types';
         searchBar.classList.toggle('active', !!searchQuery);
         if (treeDock === 'right') treePanel.classList.add('dock-right');
       }
+      updateTreeToggleIcon();
       saveTreeState();
     }
   });
 
+  updateTreeToggleIcon();
   vscode.postMessage({ type: 'ready' } satisfies EditorMessage);
 })();
