@@ -358,24 +358,19 @@ import type { EditorMessage } from '../shared/types';
     return root;
   }
 
+  const indentUnit = 16;
+
   function renderTree(nodes: TreeNode[], depth = 0) {
     let html = '';
     for (const node of nodes) {
-      if (node.type === 'dir') {
-        html += `<div class="tree-item" data-type="dir" data-path="${node.path}">`;
-        html += `<span class="indent" style="width:${depth * 16}px"></span>`;
-        html += `<span class="chevron">${node.expanded ? '▼' : '▶'}</span>`;
-        html += `<span class="icon">📁</span>`;
-        html += `<span class="label">${node.name}</span></div>`;
-        if (node.expanded) {
-          html += renderTree(node.children, depth + 1);
-        }
-      } else {
-        html += `<div class="tree-item file" data-type="file" data-path="${node.path}">`;
-        html += `<span class="indent" style="width:${depth * 16}px"></span>`;
-        html += `<span class="chevron"></span>`;
-        html += `<span class="icon">📄</span>`;
-        html += `<span class="label">${node.name}</span></div>`;
+      const isDir = node.type === 'dir';
+      html += `<div class="tree-item${isDir ? '' : ' file'}" data-type="${node.type}" data-path="${node.path}">`;
+      html += `<span class="indent" style="width:${depth * indentUnit}px"></span>`;
+      html += `<span class="chevron">${isDir ? (node.expanded ? '▼' : '▶') : ''}</span>`;
+      html += `<span class="icon codicon ${isDir ? 'codicon-folder' : 'codicon-file'}"></span>`;
+      html += `<span class="label">${node.name}</span></div>`;
+      if (isDir && node.expanded) {
+        html += renderTree(node.children, depth + 1);
       }
     }
     return html;

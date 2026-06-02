@@ -43993,24 +43993,18 @@
       }
       return root;
     }
+    const indentUnit2 = 16;
     function renderTree(nodes, depth = 0) {
       let html2 = "";
       for (const node of nodes) {
-        if (node.type === "dir") {
-          html2 += `<div class="tree-item" data-type="dir" data-path="${node.path}">`;
-          html2 += `<span class="indent" style="width:${depth * 16}px"></span>`;
-          html2 += `<span class="chevron">${node.expanded ? "\u25BC" : "\u25B6"}</span>`;
-          html2 += `<span class="icon">\u{1F4C1}</span>`;
-          html2 += `<span class="label">${node.name}</span></div>`;
-          if (node.expanded) {
-            html2 += renderTree(node.children, depth + 1);
-          }
-        } else {
-          html2 += `<div class="tree-item file" data-type="file" data-path="${node.path}">`;
-          html2 += `<span class="indent" style="width:${depth * 16}px"></span>`;
-          html2 += `<span class="chevron"></span>`;
-          html2 += `<span class="icon">\u{1F4C4}</span>`;
-          html2 += `<span class="label">${node.name}</span></div>`;
+        const isDir = node.type === "dir";
+        html2 += `<div class="tree-item${isDir ? "" : " file"}" data-type="${node.type}" data-path="${node.path}">`;
+        html2 += `<span class="indent" style="width:${depth * indentUnit2}px"></span>`;
+        html2 += `<span class="chevron">${isDir ? node.expanded ? "\u25BC" : "\u25B6" : ""}</span>`;
+        html2 += `<span class="icon codicon ${isDir ? "codicon-folder" : "codicon-file"}"></span>`;
+        html2 += `<span class="label">${node.name}</span></div>`;
+        if (isDir && node.expanded) {
+          html2 += renderTree(node.children, depth + 1);
         }
       }
       return html2;

@@ -591,12 +591,22 @@ var LiveEditorProvider = class {
     } catch {
       scriptContent = 'console.error("webview.js not found. Run npm run build first.")';
     }
+    let codiconCss = "";
+    try {
+      const codiconPath = path.join(this.context.extensionPath, "node_modules", "@vscode", "codicons", "dist", "codicon.css");
+      const fontPath = path.join(this.context.extensionPath, "node_modules", "@vscode", "codicons", "dist", "codicon.ttf");
+      codiconCss = fs.readFileSync(codiconPath, "utf-8");
+      const fontBase64 = fs.readFileSync(fontPath).toString("base64");
+      codiconCss = codiconCss.replace("./codicon.ttf", "data:font/truetype;base64," + fontBase64);
+    } catch {
+    }
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src data: https:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src 'self' data:; img-src data: https:;">
+<style nonce="${nonce}">${codiconCss}</style>
 <style nonce="${nonce}">
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
@@ -703,7 +713,7 @@ body{
 .tree-item .chevron{display:inline-block;width:16px;text-align:center;flex-shrink:0;font-size:10px;color:var(--vscode-editor-foreground);opacity:.6}
 .tree-item .icon{display:inline-block;width:16px;text-align:center;flex-shrink:0;margin-right:4px;font-size:14px}
 .tree-item .label{overflow:hidden;text-overflow:ellipsis}
-.tree-item.file{padding-left:calc(8px + 16px + 4px)}
+.tree-item.file .chevron{visibility:hidden}
 </style>
 </head>
 <body>

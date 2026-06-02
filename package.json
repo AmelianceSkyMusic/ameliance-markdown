@@ -78,6 +78,7 @@
 	},
 	"dependencies": {
 		"@codemirror/lang-markdown": "^6.5.0",
+		"@vscode/codicons": "^0.0.45",
 		"codemirror": "^6.0.2",
 		"ignore": "^7.0.5",
 		"prosemirror-commands": "^1.7.1",
