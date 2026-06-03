@@ -292,22 +292,39 @@ import type { EditorMessage } from '../shared/types';
     pmView!.focus();
   }
 
-  function cmWrap(before: string, after: string) {
+  function cmToggleWrap(open: string, close: string) {
     const cm = getCmView();
+    toggleWrap(cm, open, close);
+  }
+
+  function toggleWrap(cm: EditorView, open: string, close: string) {
     const sel = cm.state.selection.main;
     const text = cm.state.sliceDoc(sel.from, sel.to) || '';
-    cm.dispatch({
-      changes: { from: sel.from, to: sel.to, insert: before + text + after },
-      selection: { anchor: sel.from + before.length, head: sel.from + before.length + text.length }
-    });
+    if (text.startsWith(open) && text.endsWith(close)) {
+      const inner = text.slice(open.length, -close.length);
+      cm.dispatch({
+        changes: { from: sel.from, to: sel.to, insert: inner },
+        selection: { anchor: sel.from, head: sel.from + inner.length }
+      });
+    } else {
+      cm.dispatch({
+        changes: { from: sel.from, to: sel.to, insert: open + text + close },
+        selection: { anchor: sel.from + open.length, head: sel.from + open.length + text.length }
+      });
+    }
     cm.focus();
   }
 
-  function cmLinePrefix(prefix: string) {
+  function cmTogglePrefix(prefix: string) {
     const cm = getCmView();
     const sel = cm.state.selection.main;
     const line = cm.state.doc.lineAt(sel.from);
-    cm.dispatch({ changes: { from: line.from, to: line.from, insert: prefix } });
+    const lineText = cm.state.sliceDoc(line.from, line.to);
+    if (lineText.startsWith(prefix)) {
+      cm.dispatch({ changes: { from: line.from, to: line.from + prefix.length, insert: '' } });
+    } else {
+      cm.dispatch({ changes: { from: line.from, to: line.from, insert: prefix } });
+    }
     cm.focus();
   }
 
@@ -324,14 +341,14 @@ import type { EditorMessage } from '../shared/types';
     else if (currentMode === 'html' && htmlFn) { htmlFn(); }
   }
 
-  function htmlWrap(before: string, after: string) {
+  function htmlToggleWrap(open: string, close: string) {
+    toggleWrap(getHtmlView(), open, close);
+  }
+
+  function htmlInsert(text: string) {
     const hv = getHtmlView();
     const sel = hv.state.selection.main;
-    const text = hv.state.sliceDoc(sel.from, sel.to) || '';
-    hv.dispatch({
-      changes: { from: sel.from, to: sel.to, insert: before + text + after },
-      selection: { anchor: sel.from + before.length, head: sel.from + before.length + text.length }
-    });
+    hv.dispatch({ changes: { from: sel.from, to: sel.to, insert: text } });
     hv.focus();
   }
 
@@ -347,73 +364,73 @@ import type { EditorMessage } from '../shared/types';
   });
   document.getElementById('pm-bold')?.addEventListener('click', () => runInMode(
     () => toggleMark(schema.marks.strong)(pmView!.state, pmView!.dispatch),
-    () => cmWrap('**', '**'),
-    () => htmlWrap('<strong>', '</strong>')
+    () => cmToggleWrap('**', '**'),
+    () => htmlToggleWrap('<strong>', '</strong>')
   ));
   document.getElementById('pm-italic')?.addEventListener('click', () => runInMode(
     () => toggleMark(schema.marks.em)(pmView!.state, pmView!.dispatch),
-    () => cmWrap('*', '*'),
-    () => htmlWrap('<em>', '</em>')
+    () => cmToggleWrap('*', '*'),
+    () => htmlToggleWrap('<em>', '</em>')
   ));
   document.getElementById('pm-strike')?.addEventListener('click', () => runInMode(
     () => toggleMark(schema.marks.strike)(pmView!.state, pmView!.dispatch),
-    () => cmWrap('~~', '~~'),
-    () => htmlWrap('<s>', '</s>')
+    () => cmToggleWrap('~~', '~~'),
+    () => htmlToggleWrap('<s>', '</s>')
   ));
   document.getElementById('pm-code')?.addEventListener('click', () => runInMode(
     () => toggleMark(schema.marks.code)(pmView!.state, pmView!.dispatch),
-    () => cmWrap('`', '`'),
-    () => htmlWrap('<code>', '</code>')
+    () => cmToggleWrap('`', '`'),
+    () => htmlToggleWrap('<code>', '</code>')
   ));
   document.getElementById('pm-h1')?.addEventListener('click', () => runInMode(
     () => setBlockType(schema.nodes.heading, { level: 1 })(pmView!.state, pmView!.dispatch),
-    () => cmLinePrefix('# '),
-    () => htmlWrap('<h1>', '</h1>')
+    () => cmTogglePrefix('# '),
+    () => htmlToggleWrap('<h1>', '</h1>')
   ));
   document.getElementById('pm-h2')?.addEventListener('click', () => runInMode(
     () => setBlockType(schema.nodes.heading, { level: 2 })(pmView!.state, pmView!.dispatch),
-    () => cmLinePrefix('## '),
-    () => htmlWrap('<h2>', '</h2>')
+    () => cmTogglePrefix('## '),
+    () => htmlToggleWrap('<h2>', '</h2>')
   ));
   document.getElementById('pm-h3')?.addEventListener('click', () => runInMode(
     () => setBlockType(schema.nodes.heading, { level: 3 })(pmView!.state, pmView!.dispatch),
-    () => cmLinePrefix('### '),
-    () => htmlWrap('<h3>', '</h3>')
+    () => cmTogglePrefix('### '),
+    () => htmlToggleWrap('<h3>', '</h3>')
   ));
   document.getElementById('pm-h4')?.addEventListener('click', () => runInMode(
     () => setBlockType(schema.nodes.heading, { level: 4 })(pmView!.state, pmView!.dispatch),
-    () => cmLinePrefix('#### '),
-    () => htmlWrap('<h4>', '</h4>')
+    () => cmTogglePrefix('#### '),
+    () => htmlToggleWrap('<h4>', '</h4>')
   ));
   document.getElementById('pm-h5')?.addEventListener('click', () => runInMode(
     () => setBlockType(schema.nodes.heading, { level: 5 })(pmView!.state, pmView!.dispatch),
-    () => cmLinePrefix('##### '),
-    () => htmlWrap('<h5>', '</h5>')
+    () => cmTogglePrefix('##### '),
+    () => htmlToggleWrap('<h5>', '</h5>')
   ));
   document.getElementById('pm-h6')?.addEventListener('click', () => runInMode(
     () => setBlockType(schema.nodes.heading, { level: 6 })(pmView!.state, pmView!.dispatch),
-    () => cmLinePrefix('###### '),
-    () => htmlWrap('<h6>', '</h6>')
+    () => cmTogglePrefix('###### '),
+    () => htmlToggleWrap('<h6>', '</h6>')
   ));
   document.getElementById('pm-ul')?.addEventListener('click', () => runInMode(
     () => wrapInList(schema.nodes.bullet_list)(pmView!.state, pmView!.dispatch),
-    () => cmLinePrefix('- '),
-    () => htmlWrap('\n<ul>\n<li>', '</li>\n</ul>\n')
+    () => cmTogglePrefix('- '),
+    () => htmlToggleWrap('\n<ul>\n<li>', '</li>\n</ul>\n')
   ));
   document.getElementById('pm-ol')?.addEventListener('click', () => runInMode(
     () => wrapInList(schema.nodes.ordered_list)(pmView!.state, pmView!.dispatch),
-    () => cmLinePrefix('1. '),
-    () => htmlWrap('\n<ol>\n<li>', '</li>\n</ol>\n')
+    () => cmTogglePrefix('1. '),
+    () => htmlToggleWrap('\n<ol>\n<li>', '</li>\n</ol>\n')
   ));
   document.getElementById('pm-quote')?.addEventListener('click', () => runInMode(
     () => wrapIn(schema.nodes.blockquote)(pmView!.state, pmView!.dispatch),
-    () => cmLinePrefix('> '),
-    () => htmlWrap('<blockquote>', '</blockquote>')
+    () => cmTogglePrefix('> '),
+    () => htmlToggleWrap('<blockquote>', '</blockquote>')
   ));
   document.getElementById('pm-codeblock')?.addEventListener('click', () => runInMode(
     () => setBlockType(schema.nodes.code_block)(pmView!.state, pmView!.dispatch),
-    () => cmWrap('```\n', '\n```'),
-    () => htmlWrap('<pre><code>', '</code></pre>')
+    () => cmToggleWrap('```\n', '\n```'),
+    () => htmlToggleWrap('<pre><code>', '</code></pre>')
   ));
   document.getElementById('pm-hr')?.addEventListener('click', () => runInMode(
     () => {
@@ -442,7 +459,7 @@ import type { EditorMessage } from '../shared/types';
     runInMode(
       () => toggleMark(schema.marks.link, { href: url })(pmView!.state, pmView!.dispatch),
       () => cmInsert(`[${url}](${url})`),
-      () => htmlWrap(`<a href="${url}">`, '</a>')
+      () => htmlToggleWrap(`<a href="${url}">`, '</a>')
     );
   });
   document.getElementById('pm-image')?.addEventListener('click', () => {
