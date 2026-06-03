@@ -43832,6 +43832,7 @@
       mark: { mark: "highlight" }
     });
     const serializer = defaultMarkdownSerializer;
+    serializer.nodes.hard_break = { open: "  \n" };
     serializer.marks.strike = {
       open: "~~",
       close: "~~",

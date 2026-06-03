@@ -53,6 +53,7 @@ import type { EditorMessage } from '../shared/types';
   });
 
   const serializer = defaultMarkdownSerializer as any;
+  serializer.nodes.hard_break = { open: '  \n' };
   serializer.marks.strike = {
     open: '~~',
     close: '~~',
