@@ -22,7 +22,7 @@ import type { EditorMessage } from '../shared/types';
   let vscode: ReturnType<typeof acquireVsCodeApi>;
   try { vscode = acquireVsCodeApi(); } catch { return; }
 
-  // ── ProseMirror Schema (with strikethrough) ──
+  // ── ProseMirror Schema (with strikethrough + highlight) ──
 
   const strikeSpec = {
     parseDOM: [
@@ -34,21 +34,33 @@ import type { EditorMessage } from '../shared/types';
     toDOM() { return ['s', 0] as const; },
   };
 
+  const markSpec = {
+    parseDOM: [{ tag: 'mark' }],
+    toDOM() { return ['mark', 0] as const; },
+  };
+
   const schema = new Schema({
     nodes: baseSchema.spec.nodes,
-    marks: (baseSchema.spec.marks as any).addToEnd('strike', strikeSpec),
+    marks: (baseSchema.spec.marks as any).addToEnd('strike', strikeSpec).addToEnd('highlight', markSpec),
   });
 
   const md = MarkdownIt('default', { breaks: true, html: true }).enable('strikethrough');
   const parser = new MarkdownParser(schema, md, {
     ...(defaultMarkdownParser as any).tokens,
     s: { mark: 'strike' },
+    mark: { mark: 'highlight' },
   });
 
   const serializer = defaultMarkdownSerializer as any;
   serializer.marks.strike = {
     open: '~~',
     close: '~~',
+    mixable: true,
+    expelEnclosingWhitespace: true,
+  };
+  serializer.marks.highlight = {
+    open: '<mark>',
+    close: '</mark>',
     mixable: true,
     expelEnclosingWhitespace: true,
   };
@@ -269,6 +281,22 @@ import type { EditorMessage } from '../shared/types';
       const modes: ('visual' | 'source' | 'html')[] = ['visual', 'source', 'html'];
       const idx = modes.indexOf(currentMode);
       setMode(modes[(idx + 1) % modes.length]);
+      return;
+    }
+    if (e.key === 'Tab' && (currentMode === 'source' || currentMode === 'html')) {
+      e.preventDefault();
+      const cm = currentMode === 'source' ? getCmView() : getHtmlView();
+      const sel = cm.state.selection.main;
+      const line = cm.state.doc.lineAt(sel.from);
+      if (e.shiftKey) {
+        const lineText = cm.state.sliceDoc(line.from, line.to);
+        if (lineText.startsWith('  ') || lineText.startsWith('\t')) {
+          cm.dispatch({ changes: { from: line.from, to: line.from + 1, insert: '' } });
+        }
+      } else {
+        cm.dispatch({ changes: { from: line.from, to: line.from, insert: '  ' } });
+      }
+      cm.focus();
     }
   });
 
@@ -418,6 +446,11 @@ import type { EditorMessage } from '../shared/types';
     () => cmToggleWrap('`', '`'),
     () => htmlToggleWrap('<code>', '</code>')
   ));
+  document.getElementById('pm-highlight')?.addEventListener('click', () => runInMode(
+    () => toggleMark(schema.marks.highlight)(pmView!.state, pmView!.dispatch),
+    () => cmToggleWrap('<mark>', '</mark>'),
+    () => htmlToggleWrap('<mark>', '</mark>')
+  ));
   document.getElementById('pm-h1')?.addEventListener('click', () => runInMode(
     () => setBlockType(schema.nodes.heading, { level: 1 })(pmView!.state, pmView!.dispatch),
     () => cmTogglePrefix('# '),
@@ -526,6 +559,59 @@ import type { EditorMessage } from '../shared/types';
       text = htmlView?.state.doc.toString() || '';
     }
     if (text) navigator.clipboard.writeText(text);
+  });
+
+  // ── Format Brush ──
+
+  let formatBrushActive = false;
+  let formatBrushTool = 'bold';
+  const brushTools = ['bold', 'italic', 'strike', 'code', 'highlight', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+  const brushBtnIds = ['pm-bold', 'pm-italic', 'pm-strike', 'pm-code', 'pm-highlight', 'pm-h1', 'pm-h2', 'pm-h3', 'pm-h4', 'pm-h5', 'pm-h6'];
+  const disabledIds = ['pm-ol', 'pm-quote', 'pm-codeblock', 'pm-hr', 'pm-link', 'pm-image', 'pm-copy', 'pm-mode-visual', 'pm-mode-source', 'pm-mode-html', 'pm-undo', 'pm-redo', 'pm-clear'];
+
+  const toolbarEl = document.getElementById('pm-toolbar')!;
+  const brushBtn = document.getElementById('pm-brush')!;
+
+  function applyBrushTool() {
+    if (!formatBrushActive) return;
+    const sel = document.getSelection();
+    if (!sel || !sel.toString().trim()) return;
+    const idx = brushTools.indexOf(formatBrushTool);
+    if (idx < 0) return;
+    const btn = document.getElementById(brushBtnIds[idx]);
+    if (btn) btn.click();
+    formatBrushActive = false;
+    toolbarEl.classList.remove('brush-mode');
+    document.removeEventListener('mouseup', applyBrushTool);
+    document.querySelectorAll('.brush-disabled').forEach(el => el.classList.remove('brush-disabled'));
+    brushBtnIds.forEach(id => document.getElementById(id)?.classList.remove('brush-active'));
+  }
+
+  brushBtn.addEventListener('click', () => {
+    formatBrushActive = !formatBrushActive;
+    toolbarEl.classList.toggle('brush-mode', formatBrushActive);
+    if (formatBrushActive) {
+      formatBrushTool = 'bold';
+      brushBtnIds.forEach((id, i) => {
+        const btn = document.getElementById(id);
+        if (btn) btn.classList.toggle('brush-active', i === brushTools.indexOf(formatBrushTool));
+      });
+      disabledIds.forEach(id => document.getElementById(id)?.classList.add('brush-disabled'));
+      document.addEventListener('mouseup', applyBrushTool);
+    } else {
+      document.removeEventListener('mouseup', applyBrushTool);
+      document.querySelectorAll('.brush-disabled').forEach(el => el.classList.remove('brush-disabled'));
+      brushBtnIds.forEach(id => document.getElementById(id)?.classList.remove('brush-active'));
+    }
+  });
+
+  brushBtnIds.forEach((id, i) => {
+    document.getElementById(id)?.addEventListener('click', () => {
+      if (!formatBrushActive) return;
+      formatBrushTool = brushTools[i];
+      brushBtnIds.forEach(bid => document.getElementById(bid)?.classList.remove('brush-active'));
+      document.getElementById(id)?.classList.add('brush-active');
+    });
   });
 
   // ── File Tree Panel ──

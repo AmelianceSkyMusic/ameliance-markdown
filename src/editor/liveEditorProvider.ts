@@ -152,6 +152,10 @@ body{
 .panel-group-btn{border:none!important;border-radius:0!important;background:transparent;color:var(--vscode-editor-foreground);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;line-height:1;font-size:14px;padding:4px 8px}
 .panel-group-btn:hover{background:var(--vscode-toolbar-hoverBackground)}
 .panel-group-center{font-size:10px;padding:2px 4px;border-left:1px solid var(--vscode-panel-border)!important;border-right:1px solid var(--vscode-panel-border)!important}
+.pm-toolbar.brush-mode{outline:2px solid var(--vscode-focusBorder);outline-offset:-1px;border-radius:4px}
+.pm-toolbar.brush-mode .brush-disabled{opacity:.35;pointer-events:none}
+.pm-toolbar .brush-active{color:var(--vscode-button-background)!important}
+.pm-toolbar.brush-mode #pm-brush{color:var(--vscode-button-background)!important}
 .pm-toolbar .sep{width:1px;margin:2px 4px;background:var(--vscode-panel-border);display:inline-block}
 #prosemirror{display:none;flex:1;overflow-y:auto}
 #prosemirror.active{display:block}
@@ -265,11 +269,13 @@ body{
 <div id="pm-toolbar" class="pm-toolbar">
   <button id="pm-undo" title="Undo (Ctrl+Z)"><i class="codicon codicon-discard"></i></button>
   <button id="pm-redo" title="Redo (Ctrl+Y)"><i class="codicon codicon-redo"></i></button>
+  <button id="pm-clear" title="Clear Formatting"><i class="codicon codicon-eraser"></i></button>
   <span class="sep"></span>
   <button id="pm-bold" title="Bold (Ctrl+B)"><i class="codicon codicon-bold"></i></button>
   <button id="pm-italic" title="Italic (Ctrl+I)"><i class="codicon codicon-italic"></i></button>
   <button id="pm-strike" title="Strikethrough"><i class="codicon codicon-strikethrough"></i></button>
   <button id="pm-code" title="Inline Code"><i class="codicon codicon-code"></i></button>
+  <button id="pm-highlight" title="Highlight"><i class="codicon codicon-color-mode"></i></button>
   <span class="sep"></span>
   <button id="pm-h1" title="Heading 1">H1</button>
   <button id="pm-h2" title="Heading 2">H2</button>
@@ -284,10 +290,10 @@ body{
   <button id="pm-codeblock" title="Code Block"><i class="codicon codicon-file-code"></i></button>
   <button id="pm-hr" title="Horizontal Rule"><i class="codicon codicon-horizontal-rule"></i></button>
   <span class="sep"></span>
-  <button id="pm-clear" title="Clear Formatting"><i class="codicon codicon-eraser"></i></button>
   <button id="pm-link" title="Insert Link"><i class="codicon codicon-link"></i></button>
   <button id="pm-image" title="Insert Image"><i class="codicon codicon-file-media"></i></button>
   <span style="flex:1"></span>
+  <button id="pm-brush" title="Format Brush"><i class="codicon codicon-paintbrush"></i></button>
   <button id="pm-mode-visual" class="mode-btn active">Render</button>
   <button id="pm-mode-source" class="mode-btn">Source</button>
   <button id="pm-mode-html" class="mode-btn">HTML</button>

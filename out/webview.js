@@ -43716,19 +43716,32 @@
         return ["s", 0];
       }
     };
+    const markSpec = {
+      parseDOM: [{ tag: "mark" }],
+      toDOM() {
+        return ["mark", 0];
+      }
+    };
     const schema2 = new Schema2({
       nodes: schema.spec.nodes,
-      marks: schema.spec.marks.addToEnd("strike", strikeSpec)
+      marks: schema.spec.marks.addToEnd("strike", strikeSpec).addToEnd("highlight", markSpec)
     });
     const md = lib_default("default", { breaks: true, html: true }).enable("strikethrough");
     const parser5 = new MarkdownParser2(schema2, md, {
       ...defaultMarkdownParser.tokens,
-      s: { mark: "strike" }
+      s: { mark: "strike" },
+      mark: { mark: "highlight" }
     });
     const serializer = defaultMarkdownSerializer;
     serializer.marks.strike = {
       open: "~~",
       close: "~~",
+      mixable: true,
+      expelEnclosingWhitespace: true
+    };
+    serializer.marks.highlight = {
+      open: "<mark>",
+      close: "</mark>",
       mixable: true,
       expelEnclosingWhitespace: true
     };
@@ -43923,6 +43936,22 @@
         const modes = ["visual", "source", "html"];
         const idx = modes.indexOf(currentMode);
         setMode(modes[(idx + 1) % modes.length]);
+        return;
+      }
+      if (e.key === "Tab" && (currentMode === "source" || currentMode === "html")) {
+        e.preventDefault();
+        const cm = currentMode === "source" ? getCmView() : getHtmlView();
+        const sel = cm.state.selection.main;
+        const line = cm.state.doc.lineAt(sel.from);
+        if (e.shiftKey) {
+          const lineText = cm.state.sliceDoc(line.from, line.to);
+          if (lineText.startsWith("  ") || lineText.startsWith("	")) {
+            cm.dispatch({ changes: { from: line.from, to: line.from + 1, insert: "" } });
+          }
+        } else {
+          cm.dispatch({ changes: { from: line.from, to: line.from, insert: "  " } });
+        }
+        cm.focus();
       }
     });
     let savedPmSel = null;
@@ -44075,6 +44104,11 @@
       () => cmToggleWrap("`", "`"),
       () => htmlToggleWrap("<code>", "</code>")
     ));
+    document.getElementById("pm-highlight")?.addEventListener("click", () => runInMode(
+      () => toggleMark(schema2.marks.highlight)(pmView.state, pmView.dispatch),
+      () => cmToggleWrap("<mark>", "</mark>"),
+      () => htmlToggleWrap("<mark>", "</mark>")
+    ));
     document.getElementById("pm-h1")?.addEventListener("click", () => runInMode(
       () => setBlockType2(schema2.nodes.heading, { level: 1 })(pmView.state, pmView.dispatch),
       () => cmTogglePrefix("# "),
@@ -44184,6 +44218,52 @@
         text2 = htmlView?.state.doc.toString() || "";
       }
       if (text2) navigator.clipboard.writeText(text2);
+    });
+    let formatBrushActive = false;
+    let formatBrushTool = "bold";
+    const brushTools = ["bold", "italic", "strike", "code", "highlight", "h1", "h2", "h3", "h4", "h5", "h6"];
+    const brushBtnIds = ["pm-bold", "pm-italic", "pm-strike", "pm-code", "pm-highlight", "pm-h1", "pm-h2", "pm-h3", "pm-h4", "pm-h5", "pm-h6"];
+    const disabledIds = ["pm-ol", "pm-quote", "pm-codeblock", "pm-hr", "pm-link", "pm-image", "pm-copy", "pm-mode-visual", "pm-mode-source", "pm-mode-html", "pm-undo", "pm-redo", "pm-clear"];
+    const toolbarEl = document.getElementById("pm-toolbar");
+    const brushBtn = document.getElementById("pm-brush");
+    function applyBrushTool() {
+      if (!formatBrushActive) return;
+      const sel = document.getSelection();
+      if (!sel || !sel.toString().trim()) return;
+      const idx = brushTools.indexOf(formatBrushTool);
+      if (idx < 0) return;
+      const btn = document.getElementById(brushBtnIds[idx]);
+      if (btn) btn.click();
+      formatBrushActive = false;
+      toolbarEl.classList.remove("brush-mode");
+      document.removeEventListener("mouseup", applyBrushTool);
+      document.querySelectorAll(".brush-disabled").forEach((el) => el.classList.remove("brush-disabled"));
+      brushBtnIds.forEach((id2) => document.getElementById(id2)?.classList.remove("brush-active"));
+    }
+    brushBtn.addEventListener("click", () => {
+      formatBrushActive = !formatBrushActive;
+      toolbarEl.classList.toggle("brush-mode", formatBrushActive);
+      if (formatBrushActive) {
+        formatBrushTool = "bold";
+        brushBtnIds.forEach((id2, i) => {
+          const btn = document.getElementById(id2);
+          if (btn) btn.classList.toggle("brush-active", i === brushTools.indexOf(formatBrushTool));
+        });
+        disabledIds.forEach((id2) => document.getElementById(id2)?.classList.add("brush-disabled"));
+        document.addEventListener("mouseup", applyBrushTool);
+      } else {
+        document.removeEventListener("mouseup", applyBrushTool);
+        document.querySelectorAll(".brush-disabled").forEach((el) => el.classList.remove("brush-disabled"));
+        brushBtnIds.forEach((id2) => document.getElementById(id2)?.classList.remove("brush-active"));
+      }
+    });
+    brushBtnIds.forEach((id2, i) => {
+      document.getElementById(id2)?.addEventListener("click", () => {
+        if (!formatBrushActive) return;
+        formatBrushTool = brushTools[i];
+        brushBtnIds.forEach((bid) => document.getElementById(bid)?.classList.remove("brush-active"));
+        document.getElementById(id2)?.classList.add("brush-active");
+      });
     });
     let isTreeOpen = false;
     let panelsSwapped = false;
