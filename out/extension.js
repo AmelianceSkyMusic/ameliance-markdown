@@ -774,6 +774,7 @@ body{
   <button id="pm-quote" title="Blockquote"><i class="codicon codicon-quote"></i></button>
   <button id="pm-codeblock" title="Code Block"><i class="codicon codicon-file-code"></i></button>
   <button id="pm-hr" title="Horizontal Rule"><i class="codicon codicon-horizontal-rule"></i></button>
+  <button id="pm-br" title="Line Break">BR</button>
   <span class="sep"></span>
   <button id="pm-link" title="Insert Link"><i class="codicon codicon-link"></i></button>
   <button id="pm-image" title="Insert Image"><i class="codicon codicon-file-media"></i></button>

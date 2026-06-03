@@ -44270,6 +44270,14 @@
         hv.focus();
       }
     ));
+    document.getElementById("pm-br")?.addEventListener("click", () => runInMode(
+      () => {
+        const node = schema2.nodes.hard_break.create();
+        pmView.dispatch(pmView.state.tr.replaceSelectionWith(node).scrollIntoView());
+      },
+      () => cmInsert("  \n"),
+      () => htmlInsert("<br>\n")
+    ));
     document.getElementById("pm-clear")?.addEventListener("click", () => runInMode(
       () => {
         const { state, dispatch } = pmView;
