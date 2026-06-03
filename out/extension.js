@@ -584,7 +584,7 @@ var LiveEditorProvider = class {
             const absPath = path.join(wf[0].uri.fsPath, message.path);
             const uri = vscode.Uri.file(absPath);
             const doc = await vscode.workspace.openTextDocument(uri);
-            vscode.window.showTextDocument(doc);
+            vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Active, preview: true, preserveFocus: false });
           }
           break;
         case "saveTreeState":
@@ -631,6 +631,10 @@ body{
 }
 .pm-toolbar button:hover{background:var(--vscode-toolbar-hoverBackground)}
 .pm-toolbar button.active{color:var(--vscode-textLink-foreground)}
+.panel-group{display:inline-flex;align-items:center;border:1px solid var(--vscode-panel-border);border-radius:6px;overflow:hidden;flex-shrink:0}
+.panel-group-btn{border:none!important;border-radius:0!important;background:transparent;color:var(--vscode-editor-foreground);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;line-height:1;font-size:14px;padding:4px 8px}
+.panel-group-btn:hover{background:var(--vscode-toolbar-hoverBackground)}
+.panel-group-center{font-size:10px;padding:2px 4px;border-left:1px solid var(--vscode-panel-border)!important;border-right:1px solid var(--vscode-panel-border)!important}
 .pm-toolbar .sep{width:1px;margin:2px 4px;background:var(--vscode-panel-border);display:inline-block}
 #prosemirror{display:none;flex:1;overflow-y:auto}
 #prosemirror.active{display:block}
@@ -681,6 +685,10 @@ body{
 #source-editor.active{display:block}
 #source-editor .cm-editor{height:100%}
 #source-editor .cm-scroller{overflow:auto}
+.ProseMirror p:last-child{margin-bottom:0}
+#source-editor .cm-content,#html-editor .cm-content{padding:32px 40px}
+#source-editor,#html-editor{display:none;flex:1;position:relative;overflow:hidden}
+#source-editor.active,#html-editor.active{display:flex}
 #source-editor .cm-gutters{background:var(--vscode-editor-background);border-right:1px solid var(--vscode-panel-border);color:var(--vscode-editorLineNumber-foreground);user-select:none}
 #source-editor .cm-activeLineGutter{background:var(--vscode-editor-lineHighlightBackground)}
 .pm-toolbar .mode-btn{padding:3px 12px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
@@ -716,6 +724,24 @@ body{
 .tree-item .icon{display:inline-block;width:16px;text-align:center;flex-shrink:0;margin-right:4px;font-size:14px}
 .tree-item .label{overflow:hidden;text-overflow:ellipsis}
 .tree-item.file .chevron{visibility:hidden}
+#outline-panel{display:none;width:220px;flex-shrink:0;overflow-y:auto;background:var(--vscode-sideBar-background);border-right:1px solid var(--vscode-panel-border);font-size:13px;flex-direction:column;position:relative}
+#outline-panel.active{display:flex}
+#outline-panel.dock-right{order:1;border-right:none;border-left:1px solid var(--vscode-panel-border)}
+.outline-resize-handle{position:absolute;top:0;bottom:0;width:4px;cursor:col-resize;z-index:10;flex-shrink:0}
+#outline-panel:not(.dock-right) .outline-resize-handle{right:-2px}
+#outline-panel.dock-right .outline-resize-handle{left:-2px}
+.outline-resize-handle:hover{background:var(--vscode-focusBorder)}
+.outline-header{display:flex;align-items:center;padding:8px 12px;text-transform:uppercase;font-size:11px;font-weight:600;letter-spacing:.8px;color:var(--vscode-editor-foreground);border-bottom:1px solid var(--vscode-panel-border);flex-shrink:0}
+.outline-header span{flex:1}
+.outline-header button{padding:2px 6px;border:none;background:transparent;color:var(--vscode-editor-foreground);cursor:pointer;border-radius:4px;font-size:13px;line-height:1}
+.outline-header button:hover{background:var(--vscode-toolbar-hoverBackground)}
+#outline-content{flex:1;overflow-y:auto;padding:4px 0}
+.outline-item{display:flex;align-items:center;padding:2px 8px;cursor:pointer;white-space:nowrap;user-select:none;color:var(--vscode-editor-foreground)}
+.outline-item:hover{background:var(--vscode-list-hoverBackground)}
+.outline-item.active{background:var(--vscode-list-activeSelectionBackground);color:var(--vscode-list-activeSelectionForeground)}
+.outline-item .indent{display:inline-block;flex-shrink:0}
+.outline-item .label{overflow:hidden;text-overflow:ellipsis}
+.outline-item .label .heading-tag{color:var(--vscode-textPreformat-foreground);font-size:10px;font-weight:600;margin-right:4px;opacity:.7}
 </style>
 </head>
 <body>
@@ -745,18 +771,34 @@ body{
   <button id="pm-link" title="Insert Link"><i class="codicon codicon-link"></i></button>
   <button id="pm-image" title="Insert Image"><i class="codicon codicon-file-media"></i></button>
   <span style="flex:1"></span>
-  <button id="pm-tree-toggle" title="Toggle panel"><i class="codicon codicon-layout-sidebar-right"></i></button>
-  <button id="pm-mode-visual" class="mode-btn active">Visual</button>
+  <button id="pm-mode-visual" class="mode-btn active">Render</button>
   <button id="pm-mode-source" class="mode-btn">Source</button>
+  <button id="pm-mode-html" class="mode-btn">HTML</button>
+  <span class="sep"></span>
+  <button id="pm-copy" title="Copy"><i class="codicon codicon-copy"></i></button>
+  <span class="sep"></span>
+  <div class="panel-group">
+    <button id="pm-outline-toggle" class="panel-group-btn" title="Document Outline"><i class="codicon codicon-list-tree"></i></button>
+    <button id="pm-panel-swap" class="panel-group-btn panel-group-center" title="Swap panels side"><i class="codicon codicon-arrow-swap"></i></button>
+    <button id="pm-tree-toggle" class="panel-group-btn" title="Explorer"><i class="codicon codicon-files"></i></button>
+  </div>
 </div>
 <div class="editor-body">
+  <div id="outline-panel">
+    <div id="outline-resize-handle" class="outline-resize-handle"></div>
+    <div class="outline-header">
+      <span>Outline</span>
+      <button id="pm-outline-close" title="Close outline"><i class="codicon codicon-close"></i></button>
+    </div>
+    <div id="outline-content" class="outline-content"></div>
+  </div>
   <div id="file-tree-panel">
     <div id="tree-resize-handle" class="tree-resize-handle"></div>
     <div class="tree-header">
       <span>Explorer</span>
       <button id="pm-tree-search-btn" title="Search files"><i class="codicon codicon-search"></i></button>
-      <button id="pm-tree-dock" title="Move to other side"><i class="codicon codicon-arrow-both"></i></button>
-      <button id="pm-tree-close" title="Close panel"><i class="codicon codicon-close"></i></button>
+      <button id="pm-tree-close" title="Collapse all folders"><i class="codicon codicon-collapse-all"></i></button>
+      <button id="pm-tree-panel-close" title="Close panel"><i class="codicon codicon-close"></i></button>
     </div>
     <div id="tree-search-bar" class="tree-search-bar">
       <input id="tree-search-input" type="text" placeholder="Search files..." spellcheck="false">
@@ -773,6 +815,7 @@ body{
   <div class="editor-area">
     <div id="prosemirror" class="active"></div>
     <div id="source-editor"></div>
+    <div id="html-editor"></div>
   </div>
 </div>
 <script nonce="${nonce}">${scriptContent}</script>

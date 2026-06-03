@@ -1,12 +1,13 @@
 import { EditorView, keymap, highlightActiveLine, lineNumbers } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { html } from '@codemirror/lang-html';
+import { defaultKeymap, history, historyKeymap, undo as cmUndo, redo as cmRedo } from '@codemirror/commands';
 import { syntaxHighlighting, HighlightStyle } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { schema as baseSchema, defaultMarkdownParser, defaultMarkdownSerializer } from 'prosemirror-markdown';
 import { Schema } from 'prosemirror-model';
-import { EditorState as PmState } from 'prosemirror-state';
+import { EditorState as PmState, TextSelection } from 'prosemirror-state';
 import { EditorView as PmEditorView } from 'prosemirror-view';
 import { history as pmHistory, undo, redo } from 'prosemirror-history';
 import { keymap as pmKeymap } from 'prosemirror-keymap';
@@ -80,20 +81,26 @@ import type { EditorMessage } from '../shared/types';
     { tag: tags.string, color: 'var(--vscode-symbolIcon-stringForeground, #ce9178)' },
     { tag: tags.bool, color: 'var(--vscode-symbolIcon-booleanForeground, #569cd6)' },
     { tag: tags.function(tags.variableName), color: 'var(--vscode-symbolIcon-functionForeground, #dcdcaa)' },
+    { tag: tags.tagName, color: 'var(--vscode-symbolIcon-classForeground, #569cd6)' },
+    { tag: tags.attributeName, color: 'var(--vscode-symbolIcon-propertyForeground, #9cdcfe)' },
+    { tag: tags.angleBracket, color: 'var(--vscode-editor-foreground, #d4d4d4)' },
   ]);
 
   // ── State ──
 
-  let isSourceMode = false;
+  let currentMode: 'visual' | 'source' | 'html' = 'visual';
   let isExternalUpdate = false;
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   const editorContainer = document.getElementById('prosemirror')!;
   const sourceContainer = document.getElementById('source-editor')!;
+  const htmlContainer = document.getElementById('html-editor')!;
   const modeSource = document.getElementById('pm-mode-source')!;
   const modeVisual = document.getElementById('pm-mode-visual')!;
+  const modeHtml = document.getElementById('pm-mode-html')!;
   let pmView: EditorView | null = null;
   let cmView: EditorView | null = null;
+  let htmlView: EditorView | null = null;
 
   // ── ProseMirror ──
 
@@ -123,17 +130,34 @@ import type { EditorMessage } from '../shared/types';
           if (!pmView) return;
           const newState = pmView.state.apply(tr);
           pmView.updateState(newState);
-          if (tr.docChanged && !isExternalUpdate) {
-            if (debounceTimer) clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-              vscode.postMessage({ type: 'edit', text: serializer.serialize(newState.doc) + '\n' } satisfies EditorMessage);
-            }, 200);
+            if (tr.docChanged && !isExternalUpdate) {
+              if (debounceTimer) clearTimeout(debounceTimer);
+              debounceTimer = setTimeout(() => {
+                vscode.postMessage({ type: 'edit', text: serializer.serialize(newState.doc) + '\n' } satisfies EditorMessage);
+              }, 200);
+            }
+            updateOutline();
+        },
+        handleDOMEvents: {
+          dblclick: () => {
+            setTimeout(() => {
+              if (!pmView) return;
+              const { from, to } = pmView.state.selection;
+              const text = pmView.state.doc.textBetween(from, to);
+              const trimmed = text.replace(/\s+$/, '');
+              if (trimmed.length < text.length) {
+                pmView.dispatch(pmView.state.tr.setSelection(TextSelection.create(pmView.state.doc, from, from + trimmed.length)));
+              }
+            }, 10);
+            return false;
           }
         },
       });
     } catch (e) {
       document.body.innerHTML = '<div style="padding:40px;color:red"><h2>Error</h2><pre>' + e + '</pre></div>';
     }
+    editorContainer.addEventListener('scroll', updateActiveHeading);
+    updateOutline();
   }
 
   // ── CodeMirror ──
@@ -158,47 +182,93 @@ import type { EditorMessage } from '../shared/types';
                 vscode.postMessage({ type: 'edit', text: update.state.doc.toString() } satisfies EditorMessage);
               }, 200);
             }
+            updateOutline();
           }),
         ],
         parent: sourceContainer,
       });
+      cmView.scrollDOM.addEventListener('scroll', updateActiveHeading);
     }
     return cmView;
   }
 
-  // ── Toggle ──
-
-  function setMode(source: boolean) {
-    isSourceMode = source;
-    editorContainer.classList.toggle('active', !source);
-    sourceContainer.classList.toggle('active', source);
-    modeSource.classList.toggle('active', source);
-    modeVisual.classList.toggle('active', !source);
-
-    if (source) {
-      if (pmView) {
-        const cm = getCmView();
-        const text = serializer.serialize(pmView.state.doc) + '\n';
-        cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: text } });
-        setTimeout(() => cm.focus(), 0);
-      }
-    } else {
-      if (cmView) {
-        isExternalUpdate = true;
-        initProseMirror(cmView.state.doc.toString());
-        isExternalUpdate = false;
-        setTimeout(() => pmView?.dom.focus({preventScroll: true}), 0);
-      }
+  function getHtmlView(): EditorView {
+    if (!htmlView) {
+      htmlView = new EditorView({
+        doc: '',
+        extensions: [
+          html(),
+          lineNumbers(),
+          highlightActiveLine(),
+          EditorView.lineWrapping,
+          syntaxHighlighting(cmHighlight),
+          cmTheme,
+          history(),
+          keymap.of([...defaultKeymap, ...historyKeymap]),
+        ],
+        parent: htmlContainer,
+      });
     }
+    return htmlView;
   }
 
-  modeSource.addEventListener('click', () => setMode(true));
-  modeVisual.addEventListener('click', () => setMode(false));
+  // ── Toggle ──
+
+  function getCurrentMd(): string {
+    if (cmView?.state.doc.length) return cmView.state.doc.toString();
+    if (pmView) return serializer.serialize(pmView.state.doc) + '\n';
+    return '';
+  }
+
+  function setMode(mode: 'visual' | 'source' | 'html') {
+    if (mode === 'html') {
+      const mdText = getCurrentMd();
+      currentMode = mode;
+      editorContainer.classList.toggle('active', false);
+      sourceContainer.classList.toggle('active', false);
+      htmlContainer.classList.toggle('active', true);
+      modeVisual.classList.toggle('active', false);
+      modeSource.classList.toggle('active', false);
+      modeHtml.classList.toggle('active', true);
+      const htmlEditor = getHtmlView();
+      const generated = md.render(mdText);
+      htmlEditor.dispatch({ changes: { from: 0, to: htmlEditor.state.doc.length, insert: generated } });
+      updateOutline();
+      return;
+    }
+
+    currentMode = mode;
+    editorContainer.classList.toggle('active', mode === 'visual');
+    sourceContainer.classList.toggle('active', mode === 'source');
+    htmlContainer.classList.toggle('active', mode === 'html');
+    modeVisual.classList.toggle('active', mode === 'visual');
+    modeSource.classList.toggle('active', mode === 'source');
+    modeHtml.classList.toggle('active', mode === 'html');
+
+    if (mode === 'source' && pmView) {
+      const cm = getCmView();
+      const text = serializer.serialize(pmView.state.doc) + '\n';
+      cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: text } });
+      setTimeout(() => cm.focus(), 0);
+    } else if (mode === 'visual' && cmView) {
+      isExternalUpdate = true;
+      initProseMirror(cmView.state.doc.toString());
+      isExternalUpdate = false;
+      setTimeout(() => pmView?.dom.focus({preventScroll: true}), 0);
+    }
+    updateOutline();
+  }
+
+  modeSource.addEventListener('click', () => setMode('source'));
+  modeVisual.addEventListener('click', () => setMode('visual'));
+  modeHtml.addEventListener('click', () => setMode('html'));
 
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'm') {
       e.preventDefault();
-      setMode(!isSourceMode);
+      const modes: ('visual' | 'source' | 'html')[] = ['visual', 'source', 'html'];
+      const idx = modes.indexOf(currentMode);
+      setMode(modes[(idx + 1) % modes.length]);
     }
   });
 
@@ -213,69 +283,202 @@ import type { EditorMessage } from '../shared/types';
     });
   });
 
-  function cmd(fn: () => boolean) {
-    return () => {
-      if (!pmView) return;
-      if (savedPmSel) {
-        pmView.dispatch(pmView.state.tr.setSelection(savedPmSel));
-        savedPmSel = null;
-      }
-      fn();
-    };
+  function pmExec(fn: () => boolean | void) {
+    if (savedPmSel) {
+      pmView!.dispatch(pmView!.state.tr.setSelection(savedPmSel));
+      savedPmSel = null;
+    }
+    fn();
+    pmView!.focus();
   }
 
-  document.getElementById('pm-undo')?.addEventListener('click', cmd(() => undo(pmView!.state, pmView!.dispatch)));
-  document.getElementById('pm-redo')?.addEventListener('click', cmd(() => redo(pmView!.state, pmView!.dispatch)));
-  document.getElementById('pm-bold')?.addEventListener('click', cmd(() => toggleMark(schema.marks.strong)(pmView!.state, pmView!.dispatch)));
-  document.getElementById('pm-italic')?.addEventListener('click', cmd(() => toggleMark(schema.marks.em)(pmView!.state, pmView!.dispatch)));
-  document.getElementById('pm-strike')?.addEventListener('click', cmd(() => toggleMark(schema.marks.strike)(pmView!.state, pmView!.dispatch)));
-  document.getElementById('pm-code')?.addEventListener('click', cmd(() => toggleMark(schema.marks.code)(pmView!.state, pmView!.dispatch)));
-  document.getElementById('pm-h1')?.addEventListener('click', cmd(() => setBlockType(schema.nodes.heading, { level: 1 })(pmView!.state, pmView!.dispatch)));
-  document.getElementById('pm-h2')?.addEventListener('click', cmd(() => setBlockType(schema.nodes.heading, { level: 2 })(pmView!.state, pmView!.dispatch)));
-  document.getElementById('pm-h3')?.addEventListener('click', cmd(() => setBlockType(schema.nodes.heading, { level: 3 })(pmView!.state, pmView!.dispatch)));
-  document.getElementById('pm-h4')?.addEventListener('click', cmd(() => setBlockType(schema.nodes.heading, { level: 4 })(pmView!.state, pmView!.dispatch)));
-  document.getElementById('pm-h5')?.addEventListener('click', cmd(() => setBlockType(schema.nodes.heading, { level: 5 })(pmView!.state, pmView!.dispatch)));
-  document.getElementById('pm-h6')?.addEventListener('click', cmd(() => setBlockType(schema.nodes.heading, { level: 6 })(pmView!.state, pmView!.dispatch)));
-  document.getElementById('pm-ul')?.addEventListener('click', cmd(() => wrapInList(schema.nodes.bullet_list)(pmView!.state, pmView!.dispatch)));
-  document.getElementById('pm-ol')?.addEventListener('click', cmd(() => wrapInList(schema.nodes.ordered_list)(pmView!.state, pmView!.dispatch)));
-  document.getElementById('pm-quote')?.addEventListener('click', cmd(() => wrapIn(schema.nodes.blockquote)(pmView!.state, pmView!.dispatch)));
-  document.getElementById('pm-codeblock')?.addEventListener('click', cmd(() => setBlockType(schema.nodes.code_block)(pmView!.state, pmView!.dispatch)));
-  document.getElementById('pm-hr')?.addEventListener('click', () => {
-    if (!pmView) return;
-    const node = schema.nodes.horizontal_rule.create();
-    pmView.dispatch(pmView.state.tr.replaceSelectionWith(node).scrollIntoView());
-    pmView.focus();
+  function cmWrap(before: string, after: string) {
+    const cm = getCmView();
+    const sel = cm.state.selection.main;
+    const text = cm.state.sliceDoc(sel.from, sel.to) || '';
+    cm.dispatch({
+      changes: { from: sel.from, to: sel.to, insert: before + text + after },
+      selection: { anchor: sel.from + before.length, head: sel.from + before.length + text.length }
+    });
+    cm.focus();
+  }
+
+  function cmLinePrefix(prefix: string) {
+    const cm = getCmView();
+    const sel = cm.state.selection.main;
+    const line = cm.state.doc.lineAt(sel.from);
+    cm.dispatch({ changes: { from: line.from, to: line.from, insert: prefix } });
+    cm.focus();
+  }
+
+  function cmInsert(text: string) {
+    const cm = getCmView();
+    const sel = cm.state.selection.main;
+    cm.dispatch({ changes: { from: sel.from, to: sel.to, insert: text } });
+    cm.focus();
+  }
+
+  function runInMode(pmFn: () => void, cmFn: () => void, htmlFn?: () => void) {
+    if (currentMode === 'source') { cmFn(); }
+    else if (currentMode === 'visual' && pmView) { pmExec(pmFn); }
+    else if (currentMode === 'html' && htmlFn) { htmlFn(); }
+  }
+
+  function htmlWrap(before: string, after: string) {
+    const hv = getHtmlView();
+    const sel = hv.state.selection.main;
+    const text = hv.state.sliceDoc(sel.from, sel.to) || '';
+    hv.dispatch({
+      changes: { from: sel.from, to: sel.to, insert: before + text + after },
+      selection: { anchor: sel.from + before.length, head: sel.from + before.length + text.length }
+    });
+    hv.focus();
+  }
+
+  document.getElementById('pm-undo')?.addEventListener('click', () => {
+    if (currentMode === 'source') { cmUndo(getCmView()); getCmView().focus(); }
+    else if (currentMode === 'visual' && pmView) { undo(pmView.state, pmView.dispatch); pmView.focus(); }
+    else if (currentMode === 'html') { cmUndo(getHtmlView()); getHtmlView().focus(); }
   });
-  document.getElementById('pm-clear')?.addEventListener('click', () => {
-    if (!pmView) return;
-    const { state, dispatch } = pmView;
-    dispatch(state.tr.removeMark(state.selection.from, state.selection.to));
-    setBlockType(schema.nodes.paragraph)(state, dispatch);
-    pmView.focus();
+  document.getElementById('pm-redo')?.addEventListener('click', () => {
+    if (currentMode === 'source') { cmRedo(getCmView()); getCmView().focus(); }
+    else if (currentMode === 'visual' && pmView) { redo(pmView.state, pmView.dispatch); pmView.focus(); }
+    else if (currentMode === 'html') { cmRedo(getHtmlView()); getHtmlView().focus(); }
   });
-  document.getElementById('pm-link')?.addEventListener('click', () => {
-    if (!pmView) return;
-    const url = prompt('Enter URL:');
-    if (url) {
-      toggleMark(schema.marks.link, { href: url })(pmView.state, pmView.dispatch);
-      pmView.focus();
+  document.getElementById('pm-bold')?.addEventListener('click', () => runInMode(
+    () => toggleMark(schema.marks.strong)(pmView!.state, pmView!.dispatch),
+    () => cmWrap('**', '**'),
+    () => htmlWrap('<strong>', '</strong>')
+  ));
+  document.getElementById('pm-italic')?.addEventListener('click', () => runInMode(
+    () => toggleMark(schema.marks.em)(pmView!.state, pmView!.dispatch),
+    () => cmWrap('*', '*'),
+    () => htmlWrap('<em>', '</em>')
+  ));
+  document.getElementById('pm-strike')?.addEventListener('click', () => runInMode(
+    () => toggleMark(schema.marks.strike)(pmView!.state, pmView!.dispatch),
+    () => cmWrap('~~', '~~'),
+    () => htmlWrap('<s>', '</s>')
+  ));
+  document.getElementById('pm-code')?.addEventListener('click', () => runInMode(
+    () => toggleMark(schema.marks.code)(pmView!.state, pmView!.dispatch),
+    () => cmWrap('`', '`'),
+    () => htmlWrap('<code>', '</code>')
+  ));
+  document.getElementById('pm-h1')?.addEventListener('click', () => runInMode(
+    () => setBlockType(schema.nodes.heading, { level: 1 })(pmView!.state, pmView!.dispatch),
+    () => cmLinePrefix('# '),
+    () => htmlWrap('<h1>', '</h1>')
+  ));
+  document.getElementById('pm-h2')?.addEventListener('click', () => runInMode(
+    () => setBlockType(schema.nodes.heading, { level: 2 })(pmView!.state, pmView!.dispatch),
+    () => cmLinePrefix('## '),
+    () => htmlWrap('<h2>', '</h2>')
+  ));
+  document.getElementById('pm-h3')?.addEventListener('click', () => runInMode(
+    () => setBlockType(schema.nodes.heading, { level: 3 })(pmView!.state, pmView!.dispatch),
+    () => cmLinePrefix('### '),
+    () => htmlWrap('<h3>', '</h3>')
+  ));
+  document.getElementById('pm-h4')?.addEventListener('click', () => runInMode(
+    () => setBlockType(schema.nodes.heading, { level: 4 })(pmView!.state, pmView!.dispatch),
+    () => cmLinePrefix('#### '),
+    () => htmlWrap('<h4>', '</h4>')
+  ));
+  document.getElementById('pm-h5')?.addEventListener('click', () => runInMode(
+    () => setBlockType(schema.nodes.heading, { level: 5 })(pmView!.state, pmView!.dispatch),
+    () => cmLinePrefix('##### '),
+    () => htmlWrap('<h5>', '</h5>')
+  ));
+  document.getElementById('pm-h6')?.addEventListener('click', () => runInMode(
+    () => setBlockType(schema.nodes.heading, { level: 6 })(pmView!.state, pmView!.dispatch),
+    () => cmLinePrefix('###### '),
+    () => htmlWrap('<h6>', '</h6>')
+  ));
+  document.getElementById('pm-ul')?.addEventListener('click', () => runInMode(
+    () => wrapInList(schema.nodes.bullet_list)(pmView!.state, pmView!.dispatch),
+    () => cmLinePrefix('- '),
+    () => htmlWrap('\n<ul>\n<li>', '</li>\n</ul>\n')
+  ));
+  document.getElementById('pm-ol')?.addEventListener('click', () => runInMode(
+    () => wrapInList(schema.nodes.ordered_list)(pmView!.state, pmView!.dispatch),
+    () => cmLinePrefix('1. '),
+    () => htmlWrap('\n<ol>\n<li>', '</li>\n</ol>\n')
+  ));
+  document.getElementById('pm-quote')?.addEventListener('click', () => runInMode(
+    () => wrapIn(schema.nodes.blockquote)(pmView!.state, pmView!.dispatch),
+    () => cmLinePrefix('> '),
+    () => htmlWrap('<blockquote>', '</blockquote>')
+  ));
+  document.getElementById('pm-codeblock')?.addEventListener('click', () => runInMode(
+    () => setBlockType(schema.nodes.code_block)(pmView!.state, pmView!.dispatch),
+    () => cmWrap('```\n', '\n```'),
+    () => htmlWrap('<pre><code>', '</code></pre>')
+  ));
+  document.getElementById('pm-hr')?.addEventListener('click', () => runInMode(
+    () => {
+      const node = schema.nodes.horizontal_rule.create();
+      pmView!.dispatch(pmView!.state.tr.replaceSelectionWith(node).scrollIntoView());
+    },
+    () => cmInsert('\n\n---\n\n'),
+    () => {
+      const hv = getHtmlView();
+      hv.dispatch({ changes: { from: hv.state.selection.main.from, to: hv.state.selection.main.from, insert: '\n<hr>\n' } });
+      hv.focus();
     }
+  ));
+  document.getElementById('pm-clear')?.addEventListener('click', () => runInMode(
+    () => {
+      const { state, dispatch } = pmView!;
+      dispatch(state.tr.removeMark(state.selection.from, state.selection.to));
+      setBlockType(schema.nodes.paragraph)(state, dispatch);
+    },
+    () => { /* no-op in source mode */ },
+    () => { /* no-op in HTML mode */ }
+  ));
+  document.getElementById('pm-link')?.addEventListener('click', () => {
+    const url = prompt('Enter URL:');
+    if (!url) return;
+    runInMode(
+      () => toggleMark(schema.marks.link, { href: url })(pmView!.state, pmView!.dispatch),
+      () => cmInsert(`[${url}](${url})`),
+      () => htmlWrap(`<a href="${url}">`, '</a>')
+    );
   });
   document.getElementById('pm-image')?.addEventListener('click', () => {
-    if (!pmView) return;
     const url = prompt('Enter image URL:');
     const alt = prompt('Enter alt text:') || '';
-    if (url) {
-      const node = schema.nodes.image.create({ src: url, alt });
-      pmView.dispatch(pmView.state.tr.replaceSelectionWith(node).scrollIntoView());
-      pmView.focus();
+    if (!url) return;
+    runInMode(
+      () => {
+        const node = schema.nodes.image.create({ src: url, alt });
+        pmView!.dispatch(pmView!.state.tr.replaceSelectionWith(node).scrollIntoView());
+      },
+      () => cmInsert(`![${alt}](${url})`),
+      () => {
+        const hv = getHtmlView();
+        hv.dispatch({ changes: { from: hv.state.selection.main.from, to: hv.state.selection.main.to, insert: `<img src="${url}" alt="${alt}">` } });
+        hv.focus();
+      }
+    );
+  });
+
+  document.getElementById('pm-copy')?.addEventListener('click', () => {
+    let text = '';
+    if (currentMode === 'visual' && pmView) {
+      text = pmView.state.doc.textContent;
+    } else if (currentMode === 'source') {
+      text = cmView?.state.doc.toString() || '';
+    } else if (currentMode === 'html') {
+      text = htmlView?.state.doc.toString() || '';
     }
+    if (text) navigator.clipboard.writeText(text);
   });
 
   // ── File Tree Panel ──
 
   let isTreeOpen = false;
-  let treeDock: 'left' | 'right' = 'right';
+  let panelsSwapped = false;
   let treeData: TreeNode[] = [];
   let treeSaveTimer: ReturnType<typeof setTimeout> | null = null;
   let restoreExpanded: string[] | null = null;
@@ -297,7 +500,7 @@ import type { EditorMessage } from '../shared/types';
   function getTreeState() {
     return {
       isOpen: isTreeOpen,
-      dock: treeDock,
+      panelsSwapped,
       expanded: getExpandedPaths(),
       gitignore: gitignoreOn,
       searchQuery,
@@ -309,7 +512,6 @@ import type { EditorMessage } from '../shared/types';
   }
 
   function saveTreeState() {
-    if (!isTreeOpen) return;
     if (treeSaveTimer) clearTimeout(treeSaveTimer);
     treeSaveTimer = setTimeout(() => {
       vscode.postMessage({ type: 'saveTreeState', state: getTreeState() } satisfies EditorMessage);
@@ -319,12 +521,129 @@ import type { EditorMessage } from '../shared/types';
   const treePanel = document.getElementById('file-tree-panel')!;
   const treeContent = document.getElementById('tree-content')!;
   const treeToggle = document.getElementById('pm-tree-toggle')!;
+  const treePanelClose = document.getElementById('pm-tree-panel-close')!;
   const treeClose = document.getElementById('pm-tree-close')!;
-  const treeDockBtn = document.getElementById('pm-tree-dock')!;
+  const panelSwapBtn = document.getElementById('pm-panel-swap')!;
 
-  function updateTreeToggleIcon() {
-    const icon = treeToggle.querySelector('.codicon')!;
-    icon.className = `codicon codicon-layout-sidebar-${treeDock}`;
+  const outlinePanel = document.getElementById('outline-panel')!;
+  const outlineContent = document.getElementById('outline-content')!;
+  const outlineToggle = document.getElementById('pm-outline-toggle')!;
+  const outlineClose = document.getElementById('pm-outline-close')!;
+  let isOutlineOpen = false;
+
+  interface HeadingItem {
+    level: number;
+    text: string;
+    pos: number;
+  }
+
+  function getHeadings(): HeadingItem[] {
+    if (currentMode === 'source') {
+      const cm = getCmView();
+      const text = cm.state.doc.toString();
+      const headings: HeadingItem[] = [];
+      const re = /^(#{1,6})\s+(.+)$/gm;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(text)) !== null) {
+        const line = text.slice(0, m.index).split('\n').length - 1;
+        const lineStart = cm.state.doc.line(line + 1).from;
+        headings.push({ level: m[1].length, text: m[2], pos: lineStart });
+      }
+      return headings;
+    }
+    if (currentMode === 'html') return [];
+    if (!pmView) return [];
+    const headings: HeadingItem[] = [];
+    pmView.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'heading') {
+        const text = node.textContent;
+        if (text) headings.push({ level: node.attrs.level, text, pos });
+      }
+    });
+    return headings;
+  }
+
+  function renderOutline() {
+    const headings = getHeadings();
+    if (!headings.length) {
+      outlineContent.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--vscode-descriptionForeground)">No headings found</div>';
+      return;
+    }
+    let html = '<div style="padding:2px 0">';
+    for (const h of headings) {
+      const indent = (h.level - 1) * 16;
+      html += `<div class="outline-item" data-level="${h.level}" data-pos="${h.pos}">`;
+      html += `<span class="indent" style="width:${indent}px"></span>`;
+      html += `<span class="label"><span class="heading-tag">H${h.level}</span>${escapeHtml(h.text)}</span></div>`;
+    }
+    html += '</div>';
+    outlineContent.innerHTML = html;
+    outlineContent.querySelectorAll('.outline-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const pos = parseInt((el as HTMLElement).dataset.pos || '0', 10);
+        navigateToHeading(pos);
+      });
+    });
+  }
+
+  function navigateToHeading(pos: number) {
+    if (currentMode === 'source') {
+      const cm = getCmView();
+      cm.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
+      cm.focus();
+    } else if (currentMode === 'visual' && pmView) {
+      pmView.dispatch(
+        pmView.state.tr.setSelection(TextSelection.create(pmView.state.doc, pos)).scrollIntoView()
+      );
+      pmView.focus();
+    }
+  }
+
+  function updateOutline() {
+    if (isOutlineOpen) {
+      renderOutline();
+      updateActiveHeading();
+    }
+  }
+
+  function updateActiveHeading() {
+    const items = outlineContent.querySelectorAll('.outline-item');
+    if (!items.length) return;
+
+    const headings = getHeadings();
+    if (!headings.length) return;
+
+    const editor = currentMode === 'source' ? getCmView().scrollDOM : editorContainer;
+    const editorTop = editor.getBoundingClientRect().top;
+
+    let activeIdx = 0;
+    for (let i = 0; i < headings.length; i++) {
+      const coords = currentMode === 'source'
+        ? getCmView().coordsAtPos(headings[i].pos)
+        : pmView!.coordsAtPos(headings[i].pos);
+      if (!coords) continue;
+      if (coords.top <= editorTop + 5) activeIdx = i;
+    }
+
+    items.forEach((el, i) => el.classList.toggle('active', i === activeIdx));
+  }
+
+  outlineToggle.addEventListener('click', () => {
+    isOutlineOpen = !isOutlineOpen;
+    outlinePanel.classList.toggle('active', isOutlineOpen);
+    if (isOutlineOpen) {
+      updatePanelPositions();
+      updateOutline();
+    }
+  });
+
+  outlineClose.addEventListener('click', () => {
+    isOutlineOpen = false;
+    outlinePanel.classList.remove('active');
+  });
+
+  function escapeHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   interface TreeNode {
@@ -350,7 +669,7 @@ import type { EditorMessage } from '../shared/types';
         } else {
           const node: TreeNode = {
             name,
-            path: isFile ? file : '',
+            path: isFile ? file : parts.slice(0, i + 1).join('/'),
             type: isFile ? 'file' : 'dir',
             children: isFile ? [] : [],
             expanded: true,
@@ -385,7 +704,6 @@ import type { EditorMessage } from '../shared/types';
     const isDir = el.dataset.type === 'dir';
     if (!isDir) return;
     const path = el.dataset.path || '';
-    const parts = path.split('/');
     function toggleNode(nodes: TreeNode[]): boolean {
       for (const n of nodes) {
         if (n.type === 'dir' && n.path === path) {
@@ -419,28 +737,56 @@ import type { EditorMessage } from '../shared/types';
     });
   }
 
+  function updatePanelPositions() {
+    outlinePanel.classList.toggle('dock-right', panelsSwapped);
+    treePanel.classList.toggle('dock-right', !panelsSwapped);
+    const group = document.querySelector('.panel-group')!;
+    if (panelsSwapped) {
+      group.insertBefore(treeToggle, panelSwapBtn);
+      group.insertBefore(outlineToggle, panelSwapBtn.nextSibling);
+    } else {
+      group.insertBefore(outlineToggle, panelSwapBtn);
+      group.insertBefore(treeToggle, panelSwapBtn.nextSibling);
+    }
+  }
+
   treeToggle.addEventListener('click', () => {
     isTreeOpen = !isTreeOpen;
     if (isTreeOpen) {
+      restoreExpanded = treeData.length ? getExpandedPaths() : null;
       vscode.postMessage({ type: 'requestFileTree' } satisfies EditorMessage);
       treePanel.classList.add('active');
-      if (treeDock === 'right') treePanel.classList.add('dock-right');
+      updatePanelPositions();
     } else {
       treePanel.classList.remove('active');
     }
     saveTreeState();
   });
 
-  treeClose.addEventListener('click', () => {
+  treePanelClose.addEventListener('click', () => {
     isTreeOpen = false;
     treePanel.classList.remove('active');
     saveTreeState();
   });
 
-  treeDockBtn.addEventListener('click', () => {
-    treeDock = treeDock === 'left' ? 'right' : 'left';
-    treePanel.classList.toggle('dock-right', treeDock === 'right');
-    updateTreeToggleIcon();
+  treeClose.addEventListener('click', () => {
+    function collapseAll(nodes: TreeNode[]) {
+      for (const n of nodes) {
+        if (n.type === 'dir') {
+          n.expanded = false;
+          collapseAll(n.children);
+        }
+      }
+    }
+    collapseAll(treeData);
+    treeContent.innerHTML = renderTree(treeData);
+    attachTreeHandlers();
+    saveTreeState();
+  });
+
+  panelSwapBtn.addEventListener('click', () => {
+    panelsSwapped = !panelsSwapped;
+    updatePanelPositions();
     saveTreeState();
   });
 
@@ -450,9 +796,19 @@ import type { EditorMessage } from '../shared/types';
   document.addEventListener('mousemove', (e) => {
     if (!isResizing) return;
     const rect = (treePanel.parentElement as HTMLElement).getBoundingClientRect();
-    treePanel.style.width = Math.max(150, Math.min(500, treeDock === 'left' ? e.clientX - rect.left : rect.right - e.clientX)) + 'px';
+    treePanel.style.width = Math.max(150, Math.min(500, panelsSwapped ? e.clientX - rect.left : rect.right - e.clientX)) + 'px';
   });
   document.addEventListener('mouseup', () => { isResizing = false; });
+
+  const outlineResizeHandle = document.getElementById('outline-resize-handle')!;
+  let isOutlineResizing = false;
+  outlineResizeHandle.addEventListener('mousedown', (e) => { isOutlineResizing = true; e.preventDefault(); });
+  document.addEventListener('mousemove', (e) => {
+    if (!isOutlineResizing) return;
+    const rect = (outlinePanel.parentElement as HTMLElement).getBoundingClientRect();
+    outlinePanel.style.width = Math.max(150, Math.min(500, panelsSwapped ? rect.right - e.clientX : e.clientX - rect.left)) + 'px';
+  });
+  document.addEventListener('mouseup', () => { isOutlineResizing = false; });
 
   // ── File Tree Search ──
 
@@ -565,12 +921,14 @@ import type { EditorMessage } from '../shared/types';
   window.addEventListener('message', (event: MessageEvent<EditorMessage>) => {
     const msg = event.data;
     if (msg.type === 'toggleSource') {
-      setMode(!isSourceMode);
+      const modes: ('visual' | 'source' | 'html')[] = ['visual', 'source', 'html'];
+      const idx = modes.indexOf(currentMode);
+      setMode(modes[(idx + 1) % modes.length]);
       return;
     }
     if (msg.type === 'content' && typeof msg.text === 'string') {
       isExternalUpdate = true;
-      if (isSourceMode) {
+      if (currentMode === 'source') {
         const cm = getCmView();
         cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: msg.text } });
       } else if (!pmView) {
@@ -582,6 +940,12 @@ import type { EditorMessage } from '../shared/types';
           pmView.state.tr.replaceWith(0, pmView.state.doc.content.size, doc.content).scrollIntoView()
         );
       }
+      if (currentMode === 'html') {
+        const htmlEditor = getHtmlView();
+        const generated = md.render(msg.text);
+        htmlEditor.dispatch({ changes: { from: 0, to: htmlEditor.state.doc.length, insert: generated } });
+      }
+      updateOutline();
       isExternalUpdate = false;
     }
     if (msg.type === 'fileTree') {
@@ -608,7 +972,7 @@ import type { EditorMessage } from '../shared/types';
     if (msg.type === 'treeState' && msg.state) {
       const s = msg.state;
       isTreeOpen = s.isOpen;
-      treeDock = s.dock;
+      panelsSwapped = s.panelsSwapped ?? false;
       gitignoreOn = s.gitignore;
       searchQuery = s.searchQuery;
       searchRegex = s.searchRegex;
@@ -626,13 +990,11 @@ import type { EditorMessage } from '../shared/types';
         vscode.postMessage({ type: 'requestFileTree' } satisfies EditorMessage);
         treePanel.classList.add('active');
         searchBar.classList.toggle('active', !!searchQuery);
-        if (treeDock === 'right') treePanel.classList.add('dock-right');
+        updatePanelPositions();
       }
-      updateTreeToggleIcon();
       saveTreeState();
     }
   });
 
-  updateTreeToggleIcon();
   vscode.postMessage({ type: 'ready' } satisfies EditorMessage);
 })();
