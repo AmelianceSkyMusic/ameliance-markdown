@@ -43947,18 +43947,30 @@
     function toggleWrap(cm, open, close2) {
       const sel = cm.state.selection.main;
       const text2 = cm.state.sliceDoc(sel.from, sel.to) || "";
+      const doc4 = cm.state.doc.toString();
       if (text2.startsWith(open) && text2.endsWith(close2)) {
         const inner = text2.slice(open.length, -close2.length);
         cm.dispatch({
           changes: { from: sel.from, to: sel.to, insert: inner },
           selection: { anchor: sel.from, head: sel.from + inner.length }
         });
-      } else {
-        cm.dispatch({
-          changes: { from: sel.from, to: sel.to, insert: open + text2 + close2 },
-          selection: { anchor: sel.from + open.length, head: sel.from + open.length + text2.length }
-        });
+        cm.focus();
+        return;
       }
+      const before = doc4.slice(Math.max(0, sel.from - open.length), sel.from);
+      const after = doc4.slice(sel.to, Math.min(doc4.length, sel.to + close2.length));
+      if (before === open && after === close2) {
+        cm.dispatch({
+          changes: { from: sel.from - open.length, to: sel.to + close2.length, insert: text2 },
+          selection: { anchor: sel.from - open.length, head: sel.from - open.length + text2.length }
+        });
+        cm.focus();
+        return;
+      }
+      cm.dispatch({
+        changes: { from: sel.from, to: sel.to, insert: open + text2 + close2 },
+        selection: { anchor: sel.from + open.length, head: sel.from + open.length + text2.length }
+      });
       cm.focus();
     }
     function cmTogglePrefix(prefix) {
@@ -44294,6 +44306,15 @@
     function escapeHtml2(s) {
       return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
+    function sortTree(nodes) {
+      nodes.sort((a, b) => {
+        if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+      for (const n of nodes) {
+        if (n.children.length) sortTree(n.children);
+      }
+    }
     function buildTree3(files) {
       const root = [];
       for (const file of files) {
@@ -44319,6 +44340,7 @@
           }
         }
       }
+      sortTree(root);
       return root;
     }
     const indentUnit2 = 16;

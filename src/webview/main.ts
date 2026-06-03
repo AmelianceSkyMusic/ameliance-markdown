@@ -300,18 +300,33 @@ import type { EditorMessage } from '../shared/types';
   function toggleWrap(cm: EditorView, open: string, close: string) {
     const sel = cm.state.selection.main;
     const text = cm.state.sliceDoc(sel.from, sel.to) || '';
+    const doc = cm.state.doc.toString();
+
     if (text.startsWith(open) && text.endsWith(close)) {
       const inner = text.slice(open.length, -close.length);
       cm.dispatch({
         changes: { from: sel.from, to: sel.to, insert: inner },
         selection: { anchor: sel.from, head: sel.from + inner.length }
       });
-    } else {
-      cm.dispatch({
-        changes: { from: sel.from, to: sel.to, insert: open + text + close },
-        selection: { anchor: sel.from + open.length, head: sel.from + open.length + text.length }
-      });
+      cm.focus();
+      return;
     }
+
+    const before = doc.slice(Math.max(0, sel.from - open.length), sel.from);
+    const after = doc.slice(sel.to, Math.min(doc.length, sel.to + close.length));
+    if (before === open && after === close) {
+      cm.dispatch({
+        changes: { from: sel.from - open.length, to: sel.to + close.length, insert: text },
+        selection: { anchor: sel.from - open.length, head: sel.from - open.length + text.length }
+      });
+      cm.focus();
+      return;
+    }
+
+    cm.dispatch({
+      changes: { from: sel.from, to: sel.to, insert: open + text + close },
+      selection: { anchor: sel.from + open.length, head: sel.from + open.length + text.length }
+    });
     cm.focus();
   }
 
@@ -671,6 +686,16 @@ import type { EditorMessage } from '../shared/types';
     expanded: boolean;
   }
 
+  function sortTree(nodes: TreeNode[]) {
+    nodes.sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+    for (const n of nodes) {
+      if (n.children.length) sortTree(n.children);
+    }
+  }
+
   function buildTree(files: string[]): TreeNode[] {
     const root: TreeNode[] = [];
     for (const file of files) {
@@ -696,6 +721,7 @@ import type { EditorMessage } from '../shared/types';
         }
       }
     }
+    sortTree(root);
     return root;
   }
 
