@@ -287,17 +287,7 @@ import type { EditorMessage } from '../shared/types';
     if (e.key === 'Tab' && (currentMode === 'source' || currentMode === 'html')) {
       e.preventDefault();
       const cm = currentMode === 'source' ? getCmView() : getHtmlView();
-      const sel = cm.state.selection.main;
-      const line = cm.state.doc.lineAt(sel.from);
-      if (e.shiftKey) {
-        const lineText = cm.state.sliceDoc(line.from, line.to);
-        if (lineText.startsWith('  ') || lineText.startsWith('\t')) {
-          cm.dispatch({ changes: { from: line.from, to: line.from + 1, insert: '' } });
-        }
-      } else {
-        cm.dispatch({ changes: { from: line.from, to: line.from, insert: '  ' } });
-      }
-      cm.focus();
+      indentLine(cm, e.shiftKey ? -1 : 1);
     }
   });
 
@@ -561,11 +551,13 @@ import type { EditorMessage } from '../shared/types';
   function indentLine(cm: EditorView, dir: number) {
     const sel = cm.state.selection.main;
     const line = cm.state.doc.lineAt(sel.from);
+    const lineText = cm.state.sliceDoc(line.from, line.to);
     if (dir > 0) {
       cm.dispatch({ changes: { from: line.from, to: line.from, insert: '  ' } });
     } else {
-      const lineText = cm.state.sliceDoc(line.from, line.to);
-      if (lineText.startsWith('  ') || lineText.startsWith('\t')) {
+      if (lineText.startsWith('  ')) {
+        cm.dispatch({ changes: { from: line.from, to: line.from + 2, insert: '' } });
+      } else if (lineText.startsWith('\t')) {
         cm.dispatch({ changes: { from: line.from, to: line.from + 1, insert: '' } });
       }
     }

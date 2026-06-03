@@ -288,6 +288,7 @@ body{
   <button id="pm-ol" title="Numbered List"><i class="codicon codicon-list-ordered"></i></button>
   <button id="pm-indent" title="Indent (Tab)"><i class="codicon codicon-chevron-right"></i></button>
   <button id="pm-outdent" title="Outdent (Shift+Tab)"><i class="codicon codicon-chevron-left"></i></button>
+  <span class="sep"></span>
   <button id="pm-quote" title="Blockquote"><i class="codicon codicon-quote"></i></button>
   <button id="pm-codeblock" title="Code Block"><i class="codicon codicon-file-code"></i></button>
   <button id="pm-hr" title="Horizontal Rule"><i class="codicon codicon-horizontal-rule"></i></button>
@@ -296,7 +297,7 @@ body{
   <button id="pm-link" title="Insert Link"><i class="codicon codicon-link"></i></button>
   <button id="pm-image" title="Insert Image"><i class="codicon codicon-file-media"></i></button>
   <span style="flex:1"></span>
-  <button id="pm-brush" title="Format Brush"><i class="codicon codicon-paintbrush"></i></button>
+  <button id="pm-brush" title="Format Brush"><i class="codicon codicon-symbol-color"></i></button>
   <button id="pm-mode-visual" class="mode-btn active">Render</button>
   <button id="pm-mode-source" class="mode-btn">Source</button>
   <button id="pm-mode-html" class="mode-btn">HTML</button>
