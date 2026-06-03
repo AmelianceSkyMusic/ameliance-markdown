@@ -299,33 +299,41 @@ import type { EditorMessage } from '../shared/types';
 
   function toggleWrap(cm: EditorView, open: string, close: string) {
     const sel = cm.state.selection.main;
-    const text = cm.state.sliceDoc(sel.from, sel.to) || '';
+    let from = sel.from;
+    let to = sel.to;
+
+    if (from === to) {
+      const word = cm.state.wordAt(from);
+      if (word) { from = word.from; to = word.to; }
+    }
+
+    const text = cm.state.sliceDoc(from, to) || '';
     const doc = cm.state.doc.toString();
 
     if (text.startsWith(open) && text.endsWith(close)) {
       const inner = text.slice(open.length, -close.length);
       cm.dispatch({
-        changes: { from: sel.from, to: sel.to, insert: inner },
-        selection: { anchor: sel.from, head: sel.from + inner.length }
+        changes: { from, to, insert: inner },
+        selection: { anchor: from, head: from + inner.length }
       });
       cm.focus();
       return;
     }
 
-    const before = doc.slice(Math.max(0, sel.from - open.length), sel.from);
-    const after = doc.slice(sel.to, Math.min(doc.length, sel.to + close.length));
+    const before = doc.slice(Math.max(0, from - open.length), from);
+    const after = doc.slice(to, Math.min(doc.length, to + close.length));
     if (before === open && after === close) {
       cm.dispatch({
-        changes: { from: sel.from - open.length, to: sel.to + close.length, insert: text },
-        selection: { anchor: sel.from - open.length, head: sel.from - open.length + text.length }
+        changes: { from: from - open.length, to: to + close.length, insert: text },
+        selection: { anchor: from - open.length, head: from - open.length + text.length }
       });
       cm.focus();
       return;
     }
 
     cm.dispatch({
-      changes: { from: sel.from, to: sel.to, insert: open + text + close },
-      selection: { anchor: sel.from + open.length, head: sel.from + open.length + text.length }
+      changes: { from, to, insert: open + text + close },
+      selection: { anchor: from + open.length, head: from + open.length + text.length }
     });
     cm.focus();
   }

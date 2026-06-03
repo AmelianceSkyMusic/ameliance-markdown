@@ -43946,30 +43946,39 @@
     }
     function toggleWrap(cm, open, close2) {
       const sel = cm.state.selection.main;
-      const text2 = cm.state.sliceDoc(sel.from, sel.to) || "";
+      let from2 = sel.from;
+      let to = sel.to;
+      if (from2 === to) {
+        const word = cm.state.wordAt(from2);
+        if (word) {
+          from2 = word.from;
+          to = word.to;
+        }
+      }
+      const text2 = cm.state.sliceDoc(from2, to) || "";
       const doc4 = cm.state.doc.toString();
       if (text2.startsWith(open) && text2.endsWith(close2)) {
         const inner = text2.slice(open.length, -close2.length);
         cm.dispatch({
-          changes: { from: sel.from, to: sel.to, insert: inner },
-          selection: { anchor: sel.from, head: sel.from + inner.length }
+          changes: { from: from2, to, insert: inner },
+          selection: { anchor: from2, head: from2 + inner.length }
         });
         cm.focus();
         return;
       }
-      const before = doc4.slice(Math.max(0, sel.from - open.length), sel.from);
-      const after = doc4.slice(sel.to, Math.min(doc4.length, sel.to + close2.length));
+      const before = doc4.slice(Math.max(0, from2 - open.length), from2);
+      const after = doc4.slice(to, Math.min(doc4.length, to + close2.length));
       if (before === open && after === close2) {
         cm.dispatch({
-          changes: { from: sel.from - open.length, to: sel.to + close2.length, insert: text2 },
-          selection: { anchor: sel.from - open.length, head: sel.from - open.length + text2.length }
+          changes: { from: from2 - open.length, to: to + close2.length, insert: text2 },
+          selection: { anchor: from2 - open.length, head: from2 - open.length + text2.length }
         });
         cm.focus();
         return;
       }
       cm.dispatch({
-        changes: { from: sel.from, to: sel.to, insert: open + text2 + close2 },
-        selection: { anchor: sel.from + open.length, head: sel.from + open.length + text2.length }
+        changes: { from: from2, to, insert: open + text2 + close2 },
+        selection: { anchor: from2 + open.length, head: from2 + open.length + text2.length }
       });
       cm.focus();
     }
