@@ -43829,10 +43829,12 @@
     const parser5 = new MarkdownParser2(schema2, md, {
       ...defaultMarkdownParser.tokens,
       s: { mark: "strike" },
-      mark: { mark: "highlight" }
+      mark: { mark: "highlight" },
+      html_inline: { node: "text", getAttrs: (tok) => ({ text: tok.content }) },
+      html_block: { node: "text", getAttrs: (tok) => ({ text: tok.content }) }
     });
     const serializer = defaultMarkdownSerializer;
-    serializer.nodes.hard_break = { open: "  \n" };
+    serializer.nodes.hard_break = { open: "<br>\n" };
     serializer.marks.strike = {
       open: "~~",
       close: "~~",
@@ -43886,9 +43888,12 @@
     let pmView = null;
     let cmView = null;
     let htmlView = null;
+    function normalizeBr(text2) {
+      return text2.replace(/<br\s*\/?>/gi, "  \n");
+    }
     function initProseMirror(markdownText) {
       try {
-        const doc4 = parser5.parse(markdownText) || schema2.topNodeType.create();
+        const doc4 = parser5.parse(normalizeBr(markdownText)) || schema2.topNodeType.create();
         const state = EditorState2.create({
           doc: doc4,
           schema: schema2,
@@ -44132,6 +44137,36 @@
       cm.dispatch({ changes: { from: sel.from, to: sel.to, insert: text2 } });
       cm.focus();
     }
+    function pmToggleMarkWithWord(markType) {
+      const { state, dispatch } = pmView;
+      const { from: from2, to, empty: empty2 } = state.selection;
+      if (!empty2) return toggleMark(markType)(state, dispatch);
+      const doc4 = state.doc;
+      const $pos = doc4.resolve(from2);
+      if (markType.isInSet($pos.marks())) {
+        let start = from2, end = from2;
+        for (let i = from2; i <= doc4.content.size; i++) {
+          if (markType.isInSet(doc4.resolve(i).marks())) end = i;
+          else break;
+        }
+        for (let i = from2 - 1; i >= 0; i--) {
+          if (markType.isInSet(doc4.resolve(i).marks())) start = i;
+          else break;
+        }
+        dispatch(state.tr.setSelection(TextSelection.create(doc4, start, end + 1)));
+        toggleMark(markType)(pmView.state, pmView.dispatch);
+        return;
+      }
+      const before = doc4.textBetween(Math.max(0, from2 - 100), from2);
+      const after = doc4.textBetween(from2, Math.min(doc4.content.size, from2 + 100));
+      const mBefore = before.match(/(\S+)$/);
+      const mAfter = after.match(/^(\S+)/);
+      if (!mBefore && !mAfter) return toggleMark(markType)(state, dispatch);
+      const wStart = from2 - (mBefore ? mBefore[1].length : 0);
+      const wEnd = from2 + (mAfter ? mAfter[1].length : 0);
+      dispatch(state.tr.setSelection(TextSelection.create(doc4, wStart, wEnd)));
+      toggleMark(markType)(pmView.state, pmView.dispatch);
+    }
     function runInMode(pmFn, cmFn, htmlFn) {
       if (currentMode === "source") {
         cmFn();
@@ -44174,61 +44209,94 @@
         getHtmlView().focus();
       }
     });
-    document.getElementById("pm-bold")?.addEventListener("click", () => runInMode(
-      () => toggleMark(schema2.marks.strong)(pmView.state, pmView.dispatch),
-      () => cmToggleWrap("**", "**"),
-      () => htmlToggleWrap("<strong>", "</strong>")
-    ));
-    document.getElementById("pm-italic")?.addEventListener("click", () => runInMode(
-      () => toggleMark(schema2.marks.em)(pmView.state, pmView.dispatch),
-      () => cmToggleWrap("*", "*"),
-      () => htmlToggleWrap("<em>", "</em>")
-    ));
-    document.getElementById("pm-strike")?.addEventListener("click", () => runInMode(
-      () => toggleMark(schema2.marks.strike)(pmView.state, pmView.dispatch),
-      () => cmToggleWrap("~~", "~~"),
-      () => htmlToggleWrap("<s>", "</s>")
-    ));
-    document.getElementById("pm-code")?.addEventListener("click", () => runInMode(
-      () => toggleMark(schema2.marks.code)(pmView.state, pmView.dispatch),
-      () => cmToggleWrap("`", "`"),
-      () => htmlToggleWrap("<code>", "</code>")
-    ));
-    document.getElementById("pm-highlight")?.addEventListener("click", () => runInMode(
-      () => toggleMark(schema2.marks.highlight)(pmView.state, pmView.dispatch),
-      () => cmToggleWrap("<mark>", "</mark>"),
-      () => htmlToggleWrap("<mark>", "</mark>")
-    ));
-    document.getElementById("pm-h1")?.addEventListener("click", () => runInMode(
-      () => setBlockType2(schema2.nodes.heading, { level: 1 })(pmView.state, pmView.dispatch),
-      () => cmTogglePrefix("# "),
-      () => htmlToggleWrap("<h1>", "</h1>")
-    ));
-    document.getElementById("pm-h2")?.addEventListener("click", () => runInMode(
-      () => setBlockType2(schema2.nodes.heading, { level: 2 })(pmView.state, pmView.dispatch),
-      () => cmTogglePrefix("## "),
-      () => htmlToggleWrap("<h2>", "</h2>")
-    ));
-    document.getElementById("pm-h3")?.addEventListener("click", () => runInMode(
-      () => setBlockType2(schema2.nodes.heading, { level: 3 })(pmView.state, pmView.dispatch),
-      () => cmTogglePrefix("### "),
-      () => htmlToggleWrap("<h3>", "</h3>")
-    ));
-    document.getElementById("pm-h4")?.addEventListener("click", () => runInMode(
-      () => setBlockType2(schema2.nodes.heading, { level: 4 })(pmView.state, pmView.dispatch),
-      () => cmTogglePrefix("#### "),
-      () => htmlToggleWrap("<h4>", "</h4>")
-    ));
-    document.getElementById("pm-h5")?.addEventListener("click", () => runInMode(
-      () => setBlockType2(schema2.nodes.heading, { level: 5 })(pmView.state, pmView.dispatch),
-      () => cmTogglePrefix("##### "),
-      () => htmlToggleWrap("<h5>", "</h5>")
-    ));
-    document.getElementById("pm-h6")?.addEventListener("click", () => runInMode(
-      () => setBlockType2(schema2.nodes.heading, { level: 6 })(pmView.state, pmView.dispatch),
-      () => cmTogglePrefix("###### "),
-      () => htmlToggleWrap("<h6>", "</h6>")
-    ));
+    document.getElementById("pm-bold")?.addEventListener("click", () => {
+      if (formatBrushActive) return;
+      runInMode(
+        () => pmToggleMarkWithWord(schema2.marks.strong),
+        () => cmToggleWrap("**", "**"),
+        () => htmlToggleWrap("<strong>", "</strong>")
+      );
+    });
+    document.getElementById("pm-italic")?.addEventListener("click", () => {
+      if (formatBrushActive) return;
+      runInMode(
+        () => pmToggleMarkWithWord(schema2.marks.em),
+        () => cmToggleWrap("*", "*"),
+        () => htmlToggleWrap("<em>", "</em>")
+      );
+    });
+    document.getElementById("pm-strike")?.addEventListener("click", () => {
+      if (formatBrushActive) return;
+      runInMode(
+        () => pmToggleMarkWithWord(schema2.marks.strike),
+        () => cmToggleWrap("~~", "~~"),
+        () => htmlToggleWrap("<s>", "</s>")
+      );
+    });
+    document.getElementById("pm-code")?.addEventListener("click", () => {
+      if (formatBrushActive) return;
+      runInMode(
+        () => pmToggleMarkWithWord(schema2.marks.code),
+        () => cmToggleWrap("`", "`"),
+        () => htmlToggleWrap("<code>", "</code>")
+      );
+    });
+    document.getElementById("pm-highlight")?.addEventListener("click", () => {
+      if (formatBrushActive) return;
+      runInMode(
+        () => pmToggleMarkWithWord(schema2.marks.highlight),
+        () => cmToggleWrap("<mark>", "</mark>"),
+        () => htmlToggleWrap("<mark>", "</mark>")
+      );
+    });
+    document.getElementById("pm-h1")?.addEventListener("click", () => {
+      if (formatBrushActive) return;
+      runInMode(
+        () => setBlockType2(schema2.nodes.heading, { level: 1 })(pmView.state, pmView.dispatch),
+        () => cmTogglePrefix("# "),
+        () => htmlToggleWrap("<h1>", "</h1>")
+      );
+    });
+    document.getElementById("pm-h2")?.addEventListener("click", () => {
+      if (formatBrushActive) return;
+      runInMode(
+        () => setBlockType2(schema2.nodes.heading, { level: 2 })(pmView.state, pmView.dispatch),
+        () => cmTogglePrefix("## "),
+        () => htmlToggleWrap("<h2>", "</h2>")
+      );
+    });
+    document.getElementById("pm-h3")?.addEventListener("click", () => {
+      if (formatBrushActive) return;
+      runInMode(
+        () => setBlockType2(schema2.nodes.heading, { level: 3 })(pmView.state, pmView.dispatch),
+        () => cmTogglePrefix("### "),
+        () => htmlToggleWrap("<h3>", "</h3>")
+      );
+    });
+    document.getElementById("pm-h4")?.addEventListener("click", () => {
+      if (formatBrushActive) return;
+      runInMode(
+        () => setBlockType2(schema2.nodes.heading, { level: 4 })(pmView.state, pmView.dispatch),
+        () => cmTogglePrefix("#### "),
+        () => htmlToggleWrap("<h4>", "</h4>")
+      );
+    });
+    document.getElementById("pm-h5")?.addEventListener("click", () => {
+      if (formatBrushActive) return;
+      runInMode(
+        () => setBlockType2(schema2.nodes.heading, { level: 5 })(pmView.state, pmView.dispatch),
+        () => cmTogglePrefix("##### "),
+        () => htmlToggleWrap("<h5>", "</h5>")
+      );
+    });
+    document.getElementById("pm-h6")?.addEventListener("click", () => {
+      if (formatBrushActive) return;
+      runInMode(
+        () => setBlockType2(schema2.nodes.heading, { level: 6 })(pmView.state, pmView.dispatch),
+        () => cmTogglePrefix("###### "),
+        () => htmlToggleWrap("<h6>", "</h6>")
+      );
+    });
     document.getElementById("pm-ul")?.addEventListener("click", () => runInMode(
       () => wrapInList(schema2.nodes.bullet_list)(pmView.state, pmView.dispatch),
       () => cmTogglePrefix("- "),
@@ -44266,20 +44334,23 @@
         const node = schema2.nodes.hard_break.create();
         pmView.dispatch(pmView.state.tr.replaceSelectionWith(node).scrollIntoView());
       },
-      () => cmInsert("  \n"),
+      () => cmInsert("<br>\n"),
       () => htmlInsert("<br>\n")
     ));
-    document.getElementById("pm-clear")?.addEventListener("click", () => runInMode(
-      () => {
-        const { state, dispatch } = pmView;
-        dispatch(state.tr.removeMark(state.selection.from, state.selection.to));
-        setBlockType2(schema2.nodes.paragraph)(state, dispatch);
-      },
-      () => {
-      },
-      () => {
-      }
-    ));
+    document.getElementById("pm-clear")?.addEventListener("click", () => {
+      if (formatBrushActive) skipBrushApply = true;
+      runInMode(
+        () => {
+          const { state, dispatch } = pmView;
+          dispatch(state.tr.removeMark(state.selection.from, state.selection.to));
+          setBlockType2(schema2.nodes.paragraph)(state, dispatch);
+        },
+        () => {
+        },
+        () => {
+        }
+      );
+    });
     document.getElementById("pm-link")?.addEventListener("click", () => {
       const url = prompt("Enter URL:");
       if (!url) return;
@@ -44348,24 +44419,25 @@
     });
     let formatBrushActive = false;
     let formatBrushTool = "bold";
+    let skipBrushApply = false;
     const brushTools = ["bold", "italic", "strike", "code", "highlight", "h1", "h2", "h3", "h4", "h5", "h6"];
     const brushBtnIds = ["pm-bold", "pm-italic", "pm-strike", "pm-code", "pm-highlight", "pm-h1", "pm-h2", "pm-h3", "pm-h4", "pm-h5", "pm-h6"];
-    const disabledIds = ["pm-ol", "pm-quote", "pm-codeblock", "pm-hr", "pm-link", "pm-image", "pm-copy", "pm-mode-visual", "pm-mode-source", "pm-mode-html", "pm-undo", "pm-redo", "pm-clear"];
+    const disabledIds = ["pm-ol", "pm-indent", "pm-outdent", "pm-ul", "pm-quote", "pm-codeblock", "pm-hr", "pm-br", "pm-link", "pm-image"];
     const toolbarEl = document.getElementById("pm-toolbar");
     const brushBtn = document.getElementById("pm-brush");
     function applyBrushTool() {
       if (!formatBrushActive) return;
+      if (skipBrushApply) {
+        skipBrushApply = false;
+        return;
+      }
       const sel = document.getSelection();
       if (!sel || !sel.toString().trim()) return;
       const idx = brushTools.indexOf(formatBrushTool);
       if (idx < 0) return;
-      const btn = document.getElementById(brushBtnIds[idx]);
-      if (btn) btn.click();
       formatBrushActive = false;
-      toolbarEl.classList.remove("brush-mode");
-      document.removeEventListener("mouseup", applyBrushTool);
-      document.querySelectorAll(".brush-disabled").forEach((el) => el.classList.remove("brush-disabled"));
-      brushBtnIds.forEach((id2) => document.getElementById(id2)?.classList.remove("brush-active"));
+      document.getElementById(brushBtnIds[idx])?.click();
+      formatBrushActive = true;
     }
     brushBtn.addEventListener("click", () => {
       formatBrushActive = !formatBrushActive;
@@ -44387,6 +44459,7 @@
     brushBtnIds.forEach((id2, i) => {
       document.getElementById(id2)?.addEventListener("click", () => {
         if (!formatBrushActive) return;
+        skipBrushApply = true;
         formatBrushTool = brushTools[i];
         brushBtnIds.forEach((bid) => document.getElementById(bid)?.classList.remove("brush-active"));
         document.getElementById(id2)?.classList.add("brush-active");
@@ -44850,7 +44923,7 @@
           initProseMirror(msg.text);
           setTimeout(() => pmView?.dom.focus({ preventScroll: true }), 0);
         } else {
-          const doc4 = parser5.parse(msg.text) || schema2.topNodeType.create();
+          const doc4 = parser5.parse(normalizeBr(msg.text)) || schema2.topNodeType.create();
           pmView.dispatch(
             pmView.state.tr.replaceWith(0, pmView.state.doc.content.size, doc4.content).scrollIntoView()
           );

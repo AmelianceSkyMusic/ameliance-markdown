@@ -631,14 +631,17 @@ body{
 }
 .pm-toolbar button:hover{background:var(--vscode-toolbar-hoverBackground)}
 .pm-toolbar button.active{color:var(--vscode-textLink-foreground)}
+.brush-group{display:inline-flex;align-items:center}
+.pm-toolbar.brush-mode .brush-group{border:1px solid var(--vscode-panel-border);border-radius:6px;overflow:hidden}
+.pm-toolbar.brush-mode #pm-clear{border:1px solid var(--vscode-panel-border);border-radius:6px}
 .panel-group{display:inline-flex;align-items:center;border:1px solid var(--vscode-panel-border);border-radius:6px;overflow:hidden;flex-shrink:0}
 .panel-group-btn{border:none!important;border-radius:0!important;background:transparent;color:var(--vscode-editor-foreground);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;line-height:1;font-size:14px;padding:4px 8px}
 .panel-group-btn:hover{background:var(--vscode-toolbar-hoverBackground)}
 .panel-group-center{font-size:10px;padding:2px 4px;border-left:1px solid var(--vscode-panel-border)!important;border-right:1px solid var(--vscode-panel-border)!important}
 .pm-toolbar.brush-mode{outline:2px solid var(--vscode-focusBorder);outline-offset:-1px;border-radius:4px}
 .pm-toolbar.brush-mode .brush-disabled{opacity:.35;pointer-events:none}
-.pm-toolbar .brush-active{color:var(--vscode-button-background)!important}
-.pm-toolbar.brush-mode #pm-brush{color:var(--vscode-button-background)!important}
+.pm-toolbar .brush-active,
+.pm-toolbar.brush-mode #pm-brush{background:var(--vscode-button-background)!important;color:var(--vscode-button-foreground)!important;border-radius:4px}
 .pm-toolbar .sep{width:1px;margin:2px 4px;background:var(--vscode-panel-border);display:inline-block}
 #prosemirror{display:none;flex:1;overflow-y:auto}
 #prosemirror.active{display:block}
@@ -754,18 +757,24 @@ body{
   <button id="pm-redo" title="Redo (Ctrl+Y)"><i class="codicon codicon-redo"></i></button>
   <button id="pm-clear" title="Clear Formatting"><i class="codicon codicon-eraser"></i></button>
   <span class="sep"></span>
+  <button id="pm-brush" title="Wand Format"><i class="codicon codicon-wand"></i></button>
+  <span class="sep"></span>
+  <span class="brush-group">
   <button id="pm-bold" title="Bold (Ctrl+B)"><i class="codicon codicon-bold"></i></button>
   <button id="pm-italic" title="Italic (Ctrl+I)"><i class="codicon codicon-italic"></i></button>
   <button id="pm-strike" title="Strikethrough"><i class="codicon codicon-strikethrough"></i></button>
   <button id="pm-code" title="Inline Code"><i class="codicon codicon-code"></i></button>
-  <button id="pm-highlight" title="Highlight"><i class="codicon codicon-color-mode"></i></button>
+  <button id="pm-highlight" title="Highlight"><i class="codicon codicon-symbol-keyword"></i></button>
+  </span>
   <span class="sep"></span>
+  <span class="brush-group">
   <button id="pm-h1" title="Heading 1">H1</button>
   <button id="pm-h2" title="Heading 2">H2</button>
   <button id="pm-h3" title="Heading 3">H3</button>
   <button id="pm-h4" title="Heading 4">H4</button>
   <button id="pm-h5" title="Heading 5">H5</button>
   <button id="pm-h6" title="Heading 6">H6</button>
+  </span>
   <span class="sep"></span>
   <button id="pm-ul" title="Bullet List"><i class="codicon codicon-list-unordered"></i></button>
   <button id="pm-ol" title="Numbered List"><i class="codicon codicon-list-ordered"></i></button>
@@ -780,7 +789,6 @@ body{
   <button id="pm-link" title="Insert Link"><i class="codicon codicon-link"></i></button>
   <button id="pm-image" title="Insert Image"><i class="codicon codicon-file-media"></i></button>
   <span style="flex:1"></span>
-  <button id="pm-brush" title="Format Brush"><i class="codicon codicon-symbol-color"></i></button>
   <button id="pm-mode-visual" class="mode-btn active">Render</button>
   <button id="pm-mode-source" class="mode-btn">Source</button>
   <button id="pm-mode-html" class="mode-btn">HTML</button>
