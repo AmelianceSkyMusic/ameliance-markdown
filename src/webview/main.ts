@@ -15,6 +15,7 @@ import { baseKeymap, toggleMark, setBlockType, wrapIn } from 'prosemirror-comman
 import { wrapInList } from 'prosemirror-schema-list';
 
 import MarkdownIt from 'markdown-it';
+import markdownItMark from 'markdown-it-mark';
 import { MarkdownParser } from 'prosemirror-markdown';
 import type { EditorMessage } from '../shared/types';
 
@@ -44,7 +45,7 @@ import type { EditorMessage } from '../shared/types';
     marks: (baseSchema.spec.marks as any).addToEnd('strike', strikeSpec).addToEnd('highlight', markSpec),
   });
 
-  const md = MarkdownIt('default', { breaks: true, html: true }).enable('strikethrough');
+  const md = MarkdownIt('default', { breaks: true, html: true }).enable('strikethrough').use(markdownItMark);
   const parser = new MarkdownParser(schema, md, {
     ...(defaultMarkdownParser as any).tokens,
     s: { mark: 'strike' },
@@ -547,6 +548,29 @@ import type { EditorMessage } from '../shared/types';
         hv.focus();
       }
     );
+  });
+
+  function indentLine(cm: EditorView, dir: number) {
+    const sel = cm.state.selection.main;
+    const line = cm.state.doc.lineAt(sel.from);
+    if (dir > 0) {
+      cm.dispatch({ changes: { from: line.from, to: line.from, insert: '  ' } });
+    } else {
+      const lineText = cm.state.sliceDoc(line.from, line.to);
+      if (lineText.startsWith('  ') || lineText.startsWith('\t')) {
+        cm.dispatch({ changes: { from: line.from, to: line.from + 1, insert: '' } });
+      }
+    }
+    cm.focus();
+  }
+
+  document.getElementById('pm-indent')?.addEventListener('click', () => {
+    if (currentMode === 'source') { indentLine(getCmView(), 1); }
+    else if (currentMode === 'html') { indentLine(getHtmlView(), 1); }
+  });
+  document.getElementById('pm-outdent')?.addEventListener('click', () => {
+    if (currentMode === 'source') { indentLine(getCmView(), -1); }
+    else if (currentMode === 'html') { indentLine(getHtmlView(), -1); }
   });
 
   document.getElementById('pm-copy')?.addEventListener('click', () => {

@@ -769,6 +769,8 @@ body{
   <span class="sep"></span>
   <button id="pm-ul" title="Bullet List"><i class="codicon codicon-list-unordered"></i></button>
   <button id="pm-ol" title="Numbered List"><i class="codicon codicon-list-ordered"></i></button>
+  <button id="pm-indent" title="Indent (Tab)"><i class="codicon codicon-chevron-right"></i></button>
+  <button id="pm-outdent" title="Outdent (Shift+Tab)"><i class="codicon codicon-chevron-left"></i></button>
   <button id="pm-quote" title="Blockquote"><i class="codicon codicon-quote"></i></button>
   <button id="pm-codeblock" title="Code Block"><i class="codicon codicon-file-code"></i></button>
   <button id="pm-hr" title="Horizontal Rule"><i class="codicon codicon-horizontal-rule"></i></button>
