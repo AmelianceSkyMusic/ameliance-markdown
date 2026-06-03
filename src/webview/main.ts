@@ -301,14 +301,27 @@ import type { EditorMessage } from '../shared/types';
     const sel = cm.state.selection.main;
     let from = sel.from;
     let to = sel.to;
+    const doc = cm.state.doc.toString();
 
     if (from === to) {
+      const openPos = doc.lastIndexOf(open, from - 1);
+      if (openPos !== -1) {
+        const closePos = doc.indexOf(close, from);
+        if (closePos !== -1 && from >= openPos + open.length && from <= closePos) {
+          const inner = doc.slice(openPos + open.length, closePos);
+          cm.dispatch({
+            changes: { from: openPos, to: closePos + close.length, insert: inner },
+            selection: { anchor: openPos, head: openPos + inner.length }
+          });
+          cm.focus();
+          return;
+        }
+      }
       const word = cm.state.wordAt(from);
       if (word) { from = word.from; to = word.to; }
     }
 
     const text = cm.state.sliceDoc(from, to) || '';
-    const doc = cm.state.doc.toString();
 
     if (text.startsWith(open) && text.endsWith(close)) {
       const inner = text.slice(open.length, -close.length);

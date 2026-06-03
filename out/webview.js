@@ -43948,7 +43948,21 @@
       const sel = cm.state.selection.main;
       let from2 = sel.from;
       let to = sel.to;
+      const doc4 = cm.state.doc.toString();
       if (from2 === to) {
+        const openPos = doc4.lastIndexOf(open, from2 - 1);
+        if (openPos !== -1) {
+          const closePos = doc4.indexOf(close2, from2);
+          if (closePos !== -1 && from2 >= openPos + open.length && from2 <= closePos) {
+            const inner = doc4.slice(openPos + open.length, closePos);
+            cm.dispatch({
+              changes: { from: openPos, to: closePos + close2.length, insert: inner },
+              selection: { anchor: openPos, head: openPos + inner.length }
+            });
+            cm.focus();
+            return;
+          }
+        }
         const word = cm.state.wordAt(from2);
         if (word) {
           from2 = word.from;
@@ -43956,7 +43970,6 @@
         }
       }
       const text2 = cm.state.sliceDoc(from2, to) || "";
-      const doc4 = cm.state.doc.toString();
       if (text2.startsWith(open) && text2.endsWith(close2)) {
         const inner = text2.slice(open.length, -close2.length);
         cm.dispatch({
